@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 //! Endpoint-qualified rows shared by aggregate navigation surfaces.
 
 use super::*;
@@ -168,6 +169,8 @@ fn sort_aggregate_rows(
                 std::cmp::Reverse(row.recency),
             )
         });
+    } else if sort == crate::config::AgentPanelSortConfig::Role {
+        rows.sort_by_key(|row| super::agent_sidebar::agent_role_rank(&row.agent.tokens));
     }
 }
 
@@ -436,4 +439,246 @@ pub(super) fn selected_navigator_target(
     navigator: &ClientNavigatorOverlay,
 ) -> Option<ClientNavigatorTarget> {
     navigator_selected_index(rows, navigator).map(|index| rows[index].target.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::schema::{
+        AgentStatus, AgentViewBuiltinSortField, AgentViewSetParams, AgentViewSort,
+        AgentViewSortField, AgentViewSortOrder,
+    };
+    use crate::client::endpoint::{ProfileId, SavedSshEndpoint};
+    use crate::config::{AgentPanelSortConfig, Config};
+
+    fn role_agent(
+        pane_id: &str,
+        workspace_id: &str,
+        role: &str,
+        state_change_seq: u64,
+    ) -> ClientShellAgent {
+        ClientShellAgent {
+            pane_id: pane_id.into(),
+            workspace_id: workspace_id.into(),
+            tab_id: if workspace_id == "ws_1" {
+                "tab_1"
+            } else {
+                "tab_2"
+            }
+            .into(),
+            name: Some(role.into()),
+            display_agent: None,
+            agent: Some("codex".into()),
+            title: None,
+            terminal_title: None,
+            terminal_title_stripped: None,
+            agent_status: AgentStatus::Idle,
+            state_change_seq,
+            state_labels: Vec::new(),
+            tokens: vec![("team_role".into(), role.into())],
+            focused: false,
+        }
+    }
+
+    fn role_snapshot(agents: Vec<ClientShellAgent>) -> ClientShellSnapshot {
+        let mut snapshot = super::super::tests::snapshot();
+        let mut second_workspace = snapshot.workspaces[0].clone();
+        second_workspace.workspace_id = "ws_2".into();
+        second_workspace.active_tab_id = "tab_2".into();
+        second_workspace.number = 2;
+        second_workspace.focused = false;
+        snapshot.workspaces.push(second_workspace);
+        let mut second_tab = snapshot.tabs[0].clone();
+        second_tab.tab_id = "tab_2".into();
+        second_tab.workspace_id = "ws_2".into();
+        second_tab.focused = false;
+        snapshot.tabs.push(second_tab);
+        snapshot.panes = agents
+            .iter()
+            .map(|agent| crate::protocol::ClientShellPane {
+                pane_id: agent.pane_id.clone(),
+                workspace_id: agent.workspace_id.clone(),
+                tab_id: agent.tab_id.clone(),
+                focused: false,
+                ..snapshot.panes[0].clone()
+            })
+            .collect();
+        snapshot.agents = agents;
+        snapshot
+    }
+
+    fn role_endpoints(
+        local_agents: Vec<ClientShellAgent>,
+        remote_agents: Vec<ClientShellAgent>,
+    ) -> (ClientShellState, ClientEndpointId) {
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+        let profile = SavedSshEndpoint {
+            id: ProfileId::parse("0123456789abcdef0123456789abcdef").unwrap(),
+            label: "Build".into(),
+            target: "dev@build.example".into(),
+            session: "agents".into(),
+            enabled: true,
+        };
+        let remote_id = ClientEndpointId::Ssh(profile.id.clone());
+        state.set_endpoint_catalog(&[profile]);
+        state.set_snapshot(Box::new(role_snapshot(local_agents)));
+        let mut remote = role_snapshot(remote_agents);
+        remote.boot_id = "remote-boot".into();
+        state.set_endpoint_snapshot(&remote_id, Box::new(remote));
+        state.set_endpoint_status(&ClientEndpointId::Local, ClientEndpointStatus::Online);
+        state.set_endpoint_status(&remote_id, ClientEndpointStatus::Online);
+        (state, remote_id)
+    }
+
+    #[test]
+    fn aggregate_role_sort_is_role_first_and_preserves_endpoint_and_workspace_ties() {
+        let (state, remote_id) = role_endpoints(
+            vec![
+                role_agent("local-worker-2", "ws_2", "WORKER", 1),
+                role_agent("local-review", "ws_1", "REVIEW", 90),
+                role_agent("local-control", "ws_1", "CONTROL", 2),
+                role_agent("local-worker-1", "ws_1", "WORKER", 100),
+            ],
+            vec![
+                role_agent("remote-worker-2", "ws_2", "WORKER", 200),
+                role_agent("remote-review", "ws_1", "REVIEW", 300),
+                role_agent("remote-control", "ws_2", "CONTROL", 3),
+                role_agent("remote-worker-1", "ws_1", "WORKER", 400),
+            ],
+        );
+        let rows = aggregate_agent_rows(
+            &state.endpoints,
+            &ClientEndpointId::Local,
+            AgentPanelSortConfig::Role,
+        );
+        let identities = rows
+            .iter()
+            .map(|row| {
+                (
+                    row.endpoint.endpoint_id.clone(),
+                    row.agent.workspace_id.as_str(),
+                    row.agent.pane_id.as_str(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            identities,
+            [
+                (ClientEndpointId::Local, "ws_1", "local-control"),
+                (remote_id.clone(), "ws_2", "remote-control"),
+                (ClientEndpointId::Local, "ws_2", "local-worker-2"),
+                (ClientEndpointId::Local, "ws_1", "local-worker-1"),
+                (remote_id.clone(), "ws_2", "remote-worker-2"),
+                (remote_id.clone(), "ws_1", "remote-worker-1"),
+                (ClientEndpointId::Local, "ws_1", "local-review"),
+                (remote_id, "ws_1", "remote-review"),
+            ]
+        );
+    }
+
+    #[test]
+    fn aggregate_role_targets_keep_duplicate_pane_ids_endpoint_qualified() {
+        let (state, remote_id) = role_endpoints(
+            vec![role_agent("pane_1", "ws_1", "WORKER", 99)],
+            vec![role_agent("pane_1", "ws_1", "CONTROL", 1)],
+        );
+        let rows = aggregate_agent_rows(
+            &state.endpoints,
+            &ClientEndpointId::Local,
+            AgentPanelSortConfig::Role,
+        );
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].endpoint.endpoint_id, &remote_id);
+        assert_eq!(rows[0].agent.name.as_deref(), Some("CONTROL"));
+        assert_eq!(rows[1].endpoint.endpoint_id, &ClientEndpointId::Local);
+        assert_eq!(rows[1].agent.name.as_deref(), Some("WORKER"));
+        let targets = online_agent_targets(
+            &state.endpoints,
+            &ClientEndpointId::Local,
+            AgentPanelSortConfig::Role,
+        )
+        .into_iter()
+        .map(|target| (target.endpoint_id, target.pane_id))
+        .collect::<Vec<_>>();
+        assert_eq!(
+            targets,
+            [
+                (remote_id, "pane_1".to_owned()),
+                (ClientEndpointId::Local, "pane_1".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn aggregate_role_targets_exclude_offline_rows_without_hiding_cached_roles() {
+        let (mut state, remote_id) = role_endpoints(
+            vec![role_agent("pane_1", "ws_1", "WORKER", 99)],
+            vec![role_agent("pane_1", "ws_1", "CONTROL", 1)],
+        );
+        for status in [
+            ClientEndpointStatus::Connecting,
+            ClientEndpointStatus::Reconnecting,
+            ClientEndpointStatus::Attention,
+            ClientEndpointStatus::Disabled,
+        ] {
+            state.set_endpoint_status(&remote_id, status);
+            let rows = aggregate_agent_rows(
+                &state.endpoints,
+                &ClientEndpointId::Local,
+                AgentPanelSortConfig::Role,
+            );
+            assert_eq!(rows.len(), 2, "status: {status:?}");
+            assert_eq!(rows[0].endpoint.endpoint_id, &remote_id);
+            assert!(rows[0].endpoint.stale());
+            let targets = online_agent_targets(
+                &state.endpoints,
+                &ClientEndpointId::Local,
+                AgentPanelSortConfig::Role,
+            );
+            assert_eq!(targets.len(), 1, "status: {status:?}");
+            assert_eq!(targets[0].endpoint_id, ClientEndpointId::Local);
+            assert_eq!(targets[0].pane_id, "pane_1");
+        }
+    }
+
+    #[test]
+    fn aggregate_role_sort_retains_an_explicit_custom_view_sort() {
+        let (mut state, remote_id) = role_endpoints(
+            vec![role_agent("pane_1", "ws_1", "CONTROL", 1)],
+            vec![role_agent("pane_1", "ws_1", "REVIEW", 99)],
+        );
+        let role_rows = aggregate_agent_rows(
+            &state.endpoints,
+            &ClientEndpointId::Local,
+            AgentPanelSortConfig::Role,
+        );
+        assert_eq!(role_rows[0].endpoint.endpoint_id, &ClientEndpointId::Local);
+        state.set_test_endpoint_agent_view(
+            &ClientEndpointId::Local,
+            Some(AgentViewSetParams {
+                source: "tests.role-sort".into(),
+                label: Some("recent".into()),
+                filter: None,
+                sort: vec![AgentViewSort {
+                    field: AgentViewSortField::Builtin(AgentViewBuiltinSortField::StateChangeSeq),
+                    order: AgentViewSortOrder::Desc,
+                }],
+            }),
+        );
+        let targets = online_agent_targets(
+            &state.endpoints,
+            &ClientEndpointId::Local,
+            AgentPanelSortConfig::Role,
+        )
+        .into_iter()
+        .map(|target| (target.endpoint_id, target.pane_id))
+        .collect::<Vec<_>>();
+        assert_eq!(
+            targets,
+            [
+                (remote_id, "pane_1".to_owned()),
+                (ClientEndpointId::Local, "pane_1".to_owned()),
+            ]
+        );
+    }
 }

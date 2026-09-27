@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use std::io;
 
 pub(crate) const HERDR_ENV_VAR: &str = "HERDR_ENV";
@@ -22,6 +23,7 @@ mod client;
 mod config;
 mod copy_mode;
 mod detect;
+mod distro;
 mod events;
 mod ghostty;
 mod handoff_runtime;
@@ -326,7 +328,9 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # Set to "" to leave the outer terminal title alone.
 # window_title = "{hostname}: {workspace}"
 
-# Agent panel ordering: "spaces" (grouped by space) or "priority" (attention queue).
+# Agent panel ordering: "spaces" (grouped by space), "priority" (attention queue),
+# or "role" (controllers, workers, reviewers, then agents without a known role).
+# Role ordering uses the custom team_role pane metadata token.
 # "workspaces" is accepted as an alias for "spaces".
 # agent_panel_sort = "spaces"
 
@@ -501,6 +505,8 @@ fn finish_cli(outcome: io::Result<cli::CommandOutcome>) -> io::Result<()> {
 }
 
 fn main() -> io::Result<()> {
+    // Watchtower modification: isolate routing before any CLI I/O.
+    distro::prepare_environment()?;
     let raw_args: Vec<String> = match args_as_utf8(std::env::args_os()) {
         Ok(args) => args,
         Err(err) => {
@@ -520,6 +526,7 @@ fn main() -> io::Result<()> {
             std::process::exit(2);
         }
     };
+    distro::prepare_session_environment()?;
     let (args, remote_launch) = match remote::extract_remote_args(&args) {
         Ok(parsed) => parsed,
         Err(err) => {
@@ -593,6 +600,15 @@ fn main() -> io::Result<()> {
 
     if args.iter().any(|a| a == "--help" || a == "-h") {
         platform::begin_cli_output();
+        if distro::enabled() {
+            println!(
+                "watchtower {} — Herdr-based agent workspace preview",
+                distro::VERSION
+            );
+            println!("Use watchtower in place of herdr in the compatible commands below.");
+            println!("Local preview: upstream updates, remote provisioning and shared hook installation are disabled.");
+            println!("Project: https://github.com/EmreAbi/watchtower\n");
+        }
         println!("herdr — terminal workspace manager for AI coding agents");
         println!();
         println!("Usage: herdr [options]");
@@ -703,8 +719,13 @@ fn main() -> io::Result<()> {
         println!();
         println!("Config: {}", config::config_path().display());
         println!("Logs:   {}", logging::help_log_paths_summary());
-        println!("Env:    HERDR_CONFIG_PATH overrides config file path");
-        println!("Home:   https://herdr.dev");
+        if distro::enabled() {
+            println!("Env:    WATCHTOWER_CONFIG_PATH overrides config file path");
+            println!("Home:   https://github.com/EmreAbi/watchtower");
+        } else {
+            println!("Env:    HERDR_CONFIG_PATH overrides config file path");
+            println!("Home:   https://herdr.dev");
+        }
         println!();
         println!("{}", cli::AGENT_HELP_FOOTER);
         return Ok(());
@@ -712,13 +733,25 @@ fn main() -> io::Result<()> {
 
     if args.iter().any(|a| a == "--version" || a == "-V") {
         platform::begin_cli_output();
-        println!("herdr {}", crate::build_info::version());
+        if distro::enabled() {
+            println!(
+                "watchtower {} (Herdr {})",
+                distro::VERSION,
+                crate::build_info::BASE_VERSION
+            );
+        } else {
+            println!("herdr {}", crate::build_info::version());
+        }
         return Ok(());
     }
 
     if args.iter().any(|a| a == "--default-config") {
         platform::begin_cli_output();
-        print!("{DEFAULT_CONFIG}");
+        if distro::enabled() {
+            print!("{}", distro::DEFAULT_CONFIG);
+        } else {
+            print!("{DEFAULT_CONFIG}");
+        }
         return Ok(());
     }
 

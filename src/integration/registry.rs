@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -366,6 +367,9 @@ fn integration_specs() -> [(
 pub(crate) fn integration_update_instructions(
     targets: &[crate::api::schema::IntegrationTarget],
 ) -> String {
+    if cfg!(feature = "watchtower") && !targets.is_empty() {
+        return "shared hook updates are unavailable in Watchtower preview".to_string();
+    }
     let commands: Vec<String> = targets
         .iter()
         .map(|target| {

@@ -1,0 +1,17 @@
+Watchtower is an independently maintained derivative of Herdr.
+Herdr source: https://github.com/herdrdev/herdr
+Watchtower source: https://github.com/EmreAbi/watchtower
+
+This preview is based on Herdr 0.9.1, commit
+065ef9d6a531c49fb8bee7e818ef837065b21ee9.
+
+Watchtower adds its own application identity and isolated local configuration,
+runtime state and update behavior, plus optional role ordering in the agent
+sidebar. Original copyright and license notices are preserved. Watchtower is
+not an official Herdr release or an endorsement by the Herdr developers.
+
+The original Apache License 2.0 is supplied in LICENSE. App-local Microsoft
+ConPTY, libghostty-vt and portable-pty notices are under THIRD-PARTY-NOTICES.
+The bundled private AgentRadio adapter includes its MIT license at
+radio/vendor/AgentRadio/LICENSE and its source revision in radio/provenance.json.
+The build manifest records the source commit and SHA256 of each packaged file.

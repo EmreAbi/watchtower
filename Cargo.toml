@@ -15,10 +15,15 @@ include = [
     "docs/next/api/herdr-api.schema.json",
     "skills/herdr/SKILL.md",
     "distribution/install.ps1",
+    "distribution/watchtower/**",
     "README.md",
     "LICENSE",
     "Cargo.toml",
 ]
+
+# Watchtower modification: opt-in identity keeps upstream builds compatible.
+[features]
+watchtower = []
 
 [dependencies]
 base64 = "0.22.1"

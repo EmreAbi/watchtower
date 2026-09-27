@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use std::path::{Path, PathBuf};
 
 use tracing::warn;
@@ -20,7 +21,14 @@ const KNOWN_TOP_LEVEL_CONFIG_KEYS: &[&str] = &[
 ];
 
 pub fn app_dir_name() -> &'static str {
-    if cfg!(debug_assertions) {
+    // Watchtower modification: separate roots, unchanged persisted schemas.
+    if crate::distro::enabled() {
+        if cfg!(debug_assertions) {
+            "watchtower-dev"
+        } else {
+            "watchtower"
+        }
+    } else if cfg!(debug_assertions) {
         "herdr-dev"
     } else {
         "herdr"
@@ -28,6 +36,11 @@ pub fn app_dir_name() -> &'static str {
 }
 
 pub fn config_dir() -> PathBuf {
+    if crate::distro::enabled() {
+        if let Some(root) = crate::distro::data_home() {
+            return root.join("config");
+        }
+    }
     if let Ok(dir) = std::env::var("XDG_CONFIG_HOME") {
         return PathBuf::from(dir).join(app_dir_name());
     }
@@ -35,6 +48,11 @@ pub fn config_dir() -> PathBuf {
 }
 
 pub fn state_dir() -> PathBuf {
+    if crate::distro::enabled() {
+        if let Some(root) = crate::distro::data_home() {
+            return root.join("state");
+        }
+    }
     if let Ok(dir) = std::env::var("XDG_STATE_HOME") {
         return PathBuf::from(dir).join(app_dir_name());
     }
@@ -127,6 +145,24 @@ pub(super) fn read_optional_config(path: &Path) -> std::io::Result<Option<String
     }
 }
 
+/// Initial product settings are also the seed for the first settings edit.
+/// Existing user files remain authoritative, including intentionally omitted keys.
+pub(super) fn initial_config_content() -> &'static str {
+    if crate::distro::enabled() {
+        crate::distro::DEFAULT_CONFIG
+    } else {
+        ""
+    }
+}
+
+fn initial_config() -> Config {
+    if crate::distro::enabled() {
+        toml::from_str(initial_config_content()).unwrap_or_default()
+    } else {
+        Config::default()
+    }
+}
+
 impl Config {
     pub fn load() -> LoadedConfig {
         let path = config_path();
@@ -134,7 +170,7 @@ impl Config {
             Ok(Some(content)) => content,
             Ok(None) => {
                 return LoadedConfig {
-                    config: Self::default(),
+                    config: initial_config(),
                     diagnostics: Vec::new(),
                     invalid_sections: Vec::new(),
                 };
@@ -248,7 +284,7 @@ pub fn load_live_config() -> Result<LoadedConfig, Vec<String>> {
         Ok(Some(content)) => content,
         Ok(None) => {
             return Ok(LoadedConfig {
-                config: Config::default(),
+                config: initial_config(),
                 diagnostics: Vec::new(),
                 invalid_sections: Vec::new(),
             });
@@ -750,6 +786,65 @@ fn upsert_section_raw(content: &str, section: &str, key: &str, value: &str) -> S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "watchtower")]
+    #[test]
+    fn watchtower_first_theme_edit_preserves_initial_and_reload_defaults() {
+        let _guard = crate::config::test_config_env_lock().lock().unwrap();
+        let root = std::env::temp_dir().join(format!(
+            "watchtower-config-first-edit-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let path = root.join("config.toml");
+        let previous = std::env::var_os(CONFIG_PATH_ENV_VAR);
+        std::env::set_var(CONFIG_PATH_ENV_VAR, &path);
+
+        let initial = Config::load();
+        let initial_reload = load_live_config();
+        let remained_absent = !path.exists();
+        let edit = crate::config::write_edit(crate::config::ConfigEdit::Theme("catppuccin"));
+        let reloaded = load_live_config();
+        let restarted = Config::load();
+        let written = std::fs::read_to_string(&path);
+
+        match previous {
+            Some(value) => std::env::set_var(CONFIG_PATH_ENV_VAR, value),
+            None => std::env::remove_var(CONFIG_PATH_ENV_VAR),
+        }
+        let _ = std::fs::remove_dir_all(root);
+
+        assert!(remained_absent, "loading defaults must not write a file");
+        edit.expect("first theme edit");
+        let expected: Config = toml::from_str(crate::distro::DEFAULT_CONFIG).unwrap();
+        for loaded in [
+            initial,
+            initial_reload.unwrap(),
+            reloaded.unwrap(),
+            restarted,
+        ] {
+            assert!(loaded.diagnostics.is_empty(), "{:?}", loaded.diagnostics);
+            assert!(loaded.invalid_sections.is_empty());
+            assert_eq!(loaded.config.onboarding, Some(false));
+            assert_eq!(
+                loaded.config.terminal.shell_mode,
+                super::super::ShellModeConfig::NonLogin
+            );
+            assert_eq!(
+                loaded.config.ui.agent_panel_sort,
+                super::super::AgentPanelSortConfig::Role
+            );
+            assert_eq!(loaded.config.ui.sidebar.agents, expected.ui.sidebar.agents);
+            assert!(!loaded.config.update.version_check);
+            assert!(!loaded.config.update.manifest_check);
+        }
+        let written: Config = toml::from_str(&written.unwrap()).unwrap();
+        assert_eq!(written.theme.name.as_deref(), Some("catppuccin"));
+        assert!(!written.theme.auto_switch);
+    }
 
     #[test]
     fn upsert_top_level_bool_replaces_existing_value() {

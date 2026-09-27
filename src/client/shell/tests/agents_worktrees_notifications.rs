@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use super::*;
 
 #[test]
@@ -770,30 +771,212 @@ fn agent_sort_toggle_is_client_local_and_persists_per_endpoint() {
     let mut state = ClientShellState::new(config);
     state.set_snapshot(Box::new(projected));
     state.set_pane_surface(surface());
-    state.compose(106, 30).expect("agent sidebar frame");
-    let toggle = state.hits.agent_sort_toggle;
-
-    let click = state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: toggle.x,
-        row: toggle.y,
-        modifiers: KeyModifiers::empty(),
-    })]);
-
     assert_eq!(
         state.config.agent_panel_sort,
-        crate::config::AgentPanelSortConfig::Priority
+        crate::config::AgentPanelSortConfig::Spaces
     );
-    assert!(click.actions.is_empty());
-    let reloaded_config =
-        ClientShellConfig::from_config(&Config::default()).with_preferences_path(path.clone());
-    let reloaded = ClientShellState::new(reloaded_config);
-    assert_eq!(
-        reloaded.config.agent_panel_sort,
-        crate::config::AgentPanelSortConfig::Priority
-    );
-    assert!(reloaded.agent_panel_sort_manual);
+    for expected in [
+        crate::config::AgentPanelSortConfig::Priority,
+        crate::config::AgentPanelSortConfig::Role,
+        crate::config::AgentPanelSortConfig::Spaces,
+    ] {
+        state.compose(106, 30).expect("agent sidebar frame");
+        let toggle = state.hits.agent_sort_toggle;
+        assert!(!toggle.is_empty());
+        state.agent_scroll = 7;
+        let click =
+            state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: toggle.x,
+                row: toggle.y,
+                modifiers: KeyModifiers::empty(),
+            })]);
+
+        assert_eq!(state.config.agent_panel_sort, expected);
+        assert!(state.agent_panel_sort_manual);
+        assert_eq!(state.agent_scroll, 0);
+        assert!(click.repaint);
+        assert!(
+            click.actions.is_empty(),
+            "sort changes must remain client-local"
+        );
+        assert!(
+            click.requests.is_empty(),
+            "sort changes must not contact the endpoint"
+        );
+        let reloaded_config =
+            ClientShellConfig::from_config(&Config::default()).with_preferences_path(path.clone());
+        let reloaded = ClientShellState::new(reloaded_config);
+        assert_eq!(reloaded.config.agent_panel_sort, expected);
+        assert!(reloaded.agent_panel_sort_manual);
+    }
     std::fs::remove_file(path).expect("remove agent sort preferences");
+}
+
+#[test]
+fn role_order_matches_expanded_collapsed_hits_and_agent_navigation() {
+    let mut projected = snapshot();
+    let template = projected.panes[0].clone();
+    projected.panes.clear();
+    for (index, role) in ["⚙ WORKER", "🔎 REVIEW", "👤 CONTROL", ""]
+        .into_iter()
+        .enumerate()
+    {
+        let mut pane = template.clone();
+        pane.pane_id = format!("pane_{}", index + 1);
+        pane.focused = index == 0;
+        projected.agents.push(ClientShellAgent {
+            pane_id: pane.pane_id.clone(),
+            workspace_id: pane.workspace_id.clone(),
+            tab_id: pane.tab_id.clone(),
+            name: Some(format!("agent-{}", index + 1)),
+            display_agent: None,
+            agent: Some("codex".into()),
+            title: None,
+            terminal_title: None,
+            terminal_title_stripped: None,
+            agent_status: AgentStatus::Working,
+            state_change_seq: index as u64,
+            state_labels: Vec::new(),
+            tokens: vec![("team_role".into(), role.into())],
+            focused: pane.focused,
+        });
+        projected.panes.push(pane);
+    }
+    let mut config = Config::default();
+    config.ui.agent_panel_sort = crate::config::AgentPanelSortConfig::Role;
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.set_snapshot(Box::new(projected));
+    state.set_pane_surface(surface());
+    let assert_focus = |outcome: &ClientShellInput, expected: &str| {
+        assert!(matches!(
+            &outcome.actions[..],
+            [ClientShellAction::Endpoint { request, .. }]
+                if matches!(
+                    &request.method,
+                    crate::api::schema::Method::PaneFocus(target) if target.pane_id == expected
+                )
+        ));
+    };
+    for collapsed in [false, true] {
+        state.sidebar_collapsed = collapsed;
+        state.compose(146, 50).expect("role sidebar frame");
+        assert_eq!(
+            state
+                .hits
+                .agents
+                .iter()
+                .map(|(_, pane_id)| pane_id.as_str())
+                .collect::<Vec<_>>(),
+            ["pane_3", "pane_1", "pane_2", "pane_4"],
+        );
+        let first = state.hits.agents[0].0;
+        let click =
+            state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+                kind: MouseEventKind::Down(MouseButton::Left),
+                column: first.x,
+                row: first.y,
+                modifiers: KeyModifiers::empty(),
+            })]);
+        assert_focus(&click, "pane_3");
+        for (action, expected) in [
+            (crate::input::KeybindAction::FocusAgent(1), "pane_1"),
+            (crate::input::KeybindAction::NextAgent, "pane_2"),
+            (crate::input::KeybindAction::PreviousAgent, "pane_3"),
+        ] {
+            let mut outcome = ClientShellInput::default();
+            state.record_binding(crate::input::KeybindMatch::Action(action), &mut outcome);
+            assert_focus(&outcome, expected);
+        }
+    }
+}
+
+#[test]
+#[ignore = "non-gating fixed-geometry role ordering composition profile"]
+fn role_render_scale_profile() {
+    const COLS: u16 = 146;
+    const ROWS: u16 = 80;
+    for count in [1, 15] {
+        let mut projected = snapshot();
+        let template = projected.panes[0].clone();
+        projected.panes.clear();
+        for index in 0..count {
+            let mut pane = template.clone();
+            pane.pane_id = format!("pane_{}", index + 1);
+            pane.focused = index == 0;
+            projected.agents.push(ClientShellAgent {
+                pane_id: pane.pane_id.clone(),
+                workspace_id: pane.workspace_id.clone(),
+                tab_id: pane.tab_id.clone(),
+                name: Some(format!("agent-{}", index + 1)),
+                display_agent: None,
+                agent: Some("codex".into()),
+                title: None,
+                terminal_title: None,
+                terminal_title_stripped: None,
+                agent_status: AgentStatus::Working,
+                state_change_seq: index as u64,
+                state_labels: Vec::new(),
+                tokens: vec![
+                    (
+                        "team_role".into(),
+                        ["⚙ WORKER", "🔎 REVIEW", "👤 CONTROL"][index % 3].into(),
+                    ),
+                    ("summary".into(), format!("Populated agent {}", index + 1)),
+                ],
+                focused: pane.focused,
+            });
+            projected.panes.push(pane);
+        }
+        let mut baseline_ns = 0.0;
+        for sort in [
+            crate::config::AgentPanelSortConfig::Spaces,
+            crate::config::AgentPanelSortConfig::Role,
+        ] {
+            let mut config = Config::default();
+            config.ui.agent_panel_sort = sort;
+            config.ui.sidebar.agents.rows = vec![
+                vec![
+                    crate::config::AgentSidebarToken::StateIcon,
+                    crate::config::AgentSidebarToken::Agent,
+                    crate::config::AgentSidebarToken::Custom("team_role".into()),
+                ],
+                vec![crate::config::AgentSidebarToken::Custom("summary".into())],
+            ];
+            let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+            state.set_snapshot(Box::new(projected.clone()));
+            state.set_pane_surface(surface());
+            for _ in 0..20 {
+                std::hint::black_box(state.compose(COLS, ROWS).expect("role profile warmup"));
+            }
+            assert_eq!(
+                state.hits.agents.len(),
+                count,
+                "all profiled agents must render"
+            );
+            let mut samples = Vec::with_capacity(200);
+            for _ in 0..200 {
+                let started = std::time::Instant::now();
+                std::hint::black_box(state.compose(COLS, ROWS).expect("role profile frame"));
+                samples.push(started.elapsed().as_nanos());
+            }
+            samples.sort_unstable();
+            let median_ns = samples[100] as f64;
+            if sort == crate::config::AgentPanelSortConfig::Spaces {
+                baseline_ns = median_ns;
+            }
+            eprintln!(
+                "role-order agents={count} geometry={COLS}x{ROWS} sort={sort:?} median_us={:.1} p95_us={:.1} relative_to_spaces={:.3}",
+                median_ns / 1000.0,
+                samples[190] as f64 / 1000.0,
+                median_ns / baseline_ns.max(1.0),
+            );
+            assert!(
+                state.pending_requests.is_empty(),
+                "composition must not contact the endpoint"
+            );
+        }
+    }
 }
 
 #[test]

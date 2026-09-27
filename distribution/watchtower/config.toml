@@ -1,0 +1,24 @@
+# Watchtower preview defaults. Role metadata is optional and user-defined.
+onboarding = false
+
+[terminal]
+shell_mode = "non_login"
+
+[update]
+version_check = false
+manifest_check = false
+
+[ui]
+sidebar_width = 30
+pane_borders = "always"
+pane_outer_borders = true
+agent_panel_sort = "role"
+window_title = "Watchtower: {workspace}"
+
+[ui.sidebar.agents]
+row_gap = 0
+rows = [
+  ["state_icon", { token = "agent", bold = true }],
+  [{ token = "$team_role", fg = "#A6ADC8", rules = [{ contains = "CONTROL", fg = "#89B4FA", bold = true }, { contains = "REVIEW", fg = "#CBA6F7", bold = true }] }, "state_text"],
+  [{ token = "$team_target", fg = "#A6ADC8" }],
+]

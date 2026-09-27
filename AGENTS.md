@@ -1,4 +1,21 @@
-# herdr
+# Watchtower fork guidance
+
+This repository is Emre's independent Watchtower distribution. Work and push only
+to EmreAbi/watchtower; the upstream contribution/release workflow below applies
+to herdrdev/herdr, not to this fork's preview artifacts. Keep the upstream default
+build compatible; compile the product with `--features watchtower`.
+
+Use PowerShell with login/profile loading disabled. Preserve the user's running
+Herdr and Radio installation. Runtime smoke tests must use a fresh absolute
+WATCHTOWER_HOME and may stop only the Watchtower server they created. Never copy
+provider credentials, session transcripts or personal team configuration into
+the repository or artifact. Do not invoke upstream installers/release commands.
+
+Run relevant Rust tests with the Watchtower feature, formatting and clippy, plus
+the Watchtower Python packaging/Radio tests. Record any broader upstream check
+limitations in the preview validation report. Preserve protocol fixtures.
+
+# Herdr upstream guidance
 
 Terminal based agent runtime for coding agents.
 

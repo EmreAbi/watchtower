@@ -7,6 +7,18 @@ Herdr 为同时运行多个编程智能体而生。每个智能体都待在一�
 
 要从脚本或另一个智能体协调它们,请参阅[智能体自动化](/zh-cn/docs/agent-automation/)。
 
+## 智能体列表排序
+
+点击 **agents** 旁的排序标签，可依次切换 **grouped**、**priority** 和 **role**。
+客户端会保存所选模式。默认仍按 Space 排列；在 `[ui]` 中设置
+`agent_panel_sort = "role"` 可为新客户端选择角色排序。
+
+角色排序依次显示 controller、worker、reviewer 和未分类智能体。它读取自定义窗格
+元数据 `team_role`，不区分大小写地识别 `control` / `controller`、`worker` 和
+`review` / `reviewer`，也支持已有的带图标角色标签。同一角色内保持原有顺序。
+这只改变显示，不移动窗格，也不改变智能体的权限、任务或通信范围。显式设置的
+`agent.view.set` 视图仍优先于内置排序选项。
+
 ## 受支持的智能体
 
 常见编程智能体开箱即用地支持自动检测。重要的区别不在于 Herdr 能不能看到某个智能体,而在于允许哪个信号来决定 `idle`、`working` 和 `blocked`。

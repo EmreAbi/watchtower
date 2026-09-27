@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use super::*;
 use std::ffi::OsString;
 use std::sync::{Mutex, OnceLock};
@@ -572,7 +573,10 @@ fn client_error_display_detached_default_session_reattach_hint() {
     };
     let msg = err.to_string();
     assert!(
-        msg.contains("Run `herdr` to reattach"),
+        msg.contains(&format!(
+            "Run `{}` to reattach",
+            crate::distro::command_name()
+        )),
         "should suggest default reattach command: {msg}"
     );
 }
@@ -587,7 +591,10 @@ fn client_error_display_detached_named_session_reattach_hint() {
     };
     let msg = err.to_string();
     assert!(
-        msg.contains("Run `herdr session attach work` to reattach"),
+        msg.contains(&format!(
+            "Run `{} session attach work` to reattach",
+            crate::distro::command_name()
+        )),
         "should suggest named session reattach command: {msg}"
     );
 }

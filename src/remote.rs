@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 mod args;
 mod attach;
 mod host;
@@ -10,7 +11,18 @@ pub(crate) use attach::*;
 pub(crate) use host::run_remote_client_bridge;
 pub(crate) use saved::*;
 
+fn ensure_remote_enabled() -> std::io::Result<()> {
+    if cfg!(feature = "watchtower") {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "remote connections are disabled in this local Watchtower preview; remote Herdr installs and runtimes are unchanged",
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn run_remote_api_bridge(args: &[String]) -> std::io::Result<()> {
+    ensure_remote_enabled()?;
     match args {
         [] => {
             let path = crate::api::socket_path();
@@ -95,6 +107,31 @@ fn shell_quote(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "watchtower")]
+    #[test]
+    fn watchtower_remote_entrypoints_reject_before_opening_connections() {
+        // The invalid target is deliberate: the preview boundary must reject
+        // before target discovery, SSH, runtime startup, or installer prompts.
+        let launch = RemoteLaunch {
+            target: "not a remote target".to_string(),
+            keybindings: RemoteKeybindings::Local,
+            live_handoff: true,
+        };
+        let failures = [
+            run_remote(launch).err(),
+            prepare_saved_ssh("not a remote target", "default").err(),
+            connect_saved_ssh("invalid", "not a remote target", "default").err(),
+            SavedSshApiBridge::start("invalid", "not a remote target", "default").err(),
+            run_remote_api_bridge(&[]).err(),
+            run_remote_client_bridge(&[]).err(),
+        ];
+        for failure in failures {
+            let error = failure.expect("preview must reject remote entrypoint");
+            assert_eq!(error.kind(), std::io::ErrorKind::Unsupported);
+            assert!(error.to_string().contains("Watchtower preview"));
+        }
+    }
 
     #[test]
     fn remote_host_key_error_matches_ssh_diagnostics() {

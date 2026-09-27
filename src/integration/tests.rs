@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use super::command::*;
 use super::config_edit::*;
 use super::env::*;
@@ -12,6 +13,84 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
+
+#[cfg(feature = "watchtower")]
+#[test]
+fn watchtower_hook_mutations_preserve_existing_provider_files() {
+    let _lock = integration_env_lock();
+    let base = std::env::temp_dir().join(format!(
+        "watchtower-hook-guard-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let keys = [
+        "HOME",
+        "USERPROFILE",
+        "APPDATA",
+        "XDG_CONFIG_HOME",
+        "XDG_STATE_HOME",
+        PI_CODING_AGENT_DIR_ENV_VAR,
+        OMP_CONFIG_DIR_ENV_VAR,
+        CLAUDE_CONFIG_DIR_ENV_VAR,
+        CODEX_HOME_ENV_VAR,
+        COPILOT_HOME_ENV_VAR,
+        KIMI_CODE_HOME_ENV_VAR,
+        QODERCLI_CONFIG_DIR_ENV_VAR,
+        QWEN_HOME_ENV_VAR,
+        CURSOR_CONFIG_DIR_ENV_VAR,
+        ANTIGRAVITY_CLI_CONFIG_DIR_ENV_VAR,
+        GROK_CONFIG_DIR_ENV_VAR,
+        GROK_HOME_ENV_VAR,
+        HERMES_HOME_ENV_VAR,
+    ];
+    let original = keys.map(|key| (key, std::env::var_os(key)));
+    for key in keys {
+        std::env::set_var(key, &base);
+    }
+    fs::create_dir_all(&base).unwrap();
+    let hook = base.join(CODEX_HOOK_INSTALL_NAME);
+    fs::write(&hook, CODEX_HOOK_ASSET).unwrap();
+    let config = base.join("config.toml");
+    fs::write(&config, "# existing provider configuration\n").unwrap();
+
+    for target in crate::api::schema::IntegrationTarget::ALL {
+        for failure in [install_target(target), uninstall_target(target)] {
+            let error = failure.unwrap_err();
+            assert_eq!(error.kind(), std::io::ErrorKind::Unsupported);
+            assert!(error.to_string().contains("Watchtower preview"));
+        }
+    }
+    for failure in [install_experimental_letta(), uninstall_experimental_letta()] {
+        assert_eq!(failure.unwrap_err().kind(), std::io::ErrorKind::Unsupported);
+    }
+    assert_eq!(fs::read_to_string(&hook).unwrap(), CODEX_HOOK_ASSET);
+    assert_eq!(
+        fs::read_to_string(&config).unwrap(),
+        "# existing provider configuration\n"
+    );
+    assert_eq!(fs::read_dir(&base).unwrap().count(), 2);
+    // Status inspection remains usable for the existing compatible hook.
+    let status = integration_status_at(
+        crate::api::schema::IntegrationTarget::Codex,
+        hook,
+        CODEX_INTEGRATION_VERSION,
+    );
+    assert_eq!(status.state, IntegrationStatusKind::Current);
+    assert_eq!(
+        integration_update_instructions(&[crate::api::schema::IntegrationTarget::Codex]),
+        "shared hook updates are unavailable in Watchtower preview"
+    );
+    for (key, value) in original {
+        match value {
+            Some(value) => std::env::set_var(key, value),
+            None => std::env::remove_var(key),
+        }
+    }
+    fs::remove_dir_all(base).unwrap();
+}
 
 #[test]
 fn windows_powershell_encoded_hook_command_preserves_script_invocation() {
@@ -2412,8 +2491,8 @@ fn opencode_hard_link_rejection_precedes_install_and_uninstall_asset_changes() {
     fs::hard_link(&config, &alias).unwrap();
     let target = crate::api::schema::IntegrationTarget::Opencode;
     for error in [
-        install_target(target).unwrap_err(),
-        uninstall_target(target).unwrap_err(),
+        super::actions::install_target_inner(target).unwrap_err(),
+        super::actions::uninstall_target_inner(target).unwrap_err(),
     ] {
         assert!(error.to_string().contains("multiple hard links"));
         assert!(error.to_string().contains("cli.json"));
@@ -2450,8 +2529,8 @@ fn opencode_recovery_copy_blocks_retry_before_parsing_or_asset_changes() {
             fs::remove_file(&config).unwrap();
         }
         for error in [
-            install_target(target).unwrap_err(),
-            uninstall_target(target).unwrap_err(),
+            super::actions::install_target_inner(target).unwrap_err(),
+            super::actions::uninstall_target_inner(target).unwrap_err(),
         ] {
             assert!(error.to_string().contains("recovery copy"), "{error}");
             assert!(error.to_string().contains("cli.json.herdr-backup"));
@@ -2468,7 +2547,7 @@ fn opencode_recovery_copy_blocks_retry_before_parsing_or_asset_changes() {
     fs::rename(&backup, &linked_backup).unwrap();
     std::os::windows::fs::symlink_file(&referent, &config).unwrap();
     let link_before = fs::read_link(&config).unwrap();
-    let error = install_target(target).unwrap_err();
+    let error = super::actions::install_target_inner(target).unwrap_err();
     assert!(error.to_string().contains("preferences.json.herdr-backup"));
     assert_eq!(fs::read_link(&config).unwrap(), link_before);
     assert_eq!(fs::read_to_string(&plugin).unwrap(), "previous integration");

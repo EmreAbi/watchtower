@@ -1,85 +1,119 @@
-# herdr
+# Watchtower
 
+**A terminal workspace for coordinating coding-agent teams.**
 
-<p align="center">
-  <img src="assets/logo.png" alt="herdr" width="100" />
-</p>
+Watchtower brings agent roles, project context and communication into one place.
+The goal is to make it clear who is coordinating, who is implementing, who is
+reviewing, and which project each agent belongs to—without turning the sidebar
+into a wall of account statistics.
 
-<p align="center">
-  <a href="https://herdr.dev">herdr.dev</a> · <a href="#install">install</a> · <a href="https://herdr.dev/docs/quick-start/">quick start</a> · <a href="https://herdr.dev/docs/">docs</a>
-</p>
+Watchtower is an independent fork of [Herdr](https://github.com/herdrdev/herdr),
+with [AgentRadio](https://github.com/detailles/AgentRadio) for communication.
+Herdr provides the terminal runtime; this project develops its own defaults,
+team experience and release path.
 
-<p align="center">
-  English · <a href="README.zh-CN.md">简体中文</a>
-</p>
+> **Status: Windows preview `0.1.0-preview.1`.** Based on Herdr `0.9.1`, with
+> AgentRadio `0.7.1`. This is a portable development preview, not a stable release.
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-666666?labelColor=333333" alt="Apache 2.0 license" /></a>
-  <a href="https://github.com/herdrdev/herdr/releases"><img src="https://img.shields.io/github/downloads/herdrdev/herdr/total?labelColor=333333&color=666666" alt="total GitHub release downloads" /></a>
-  <a href="https://github.com/herdrdev/herdr/stargazers"><img src="https://img.shields.io/github/stars/herdrdev/herdr?labelColor=333333&color=666666&logo=github" alt="GitHub stars" /></a>
-  <a href="https://github.com/herdrdev/herdr/releases/latest"><img src="https://img.shields.io/github/v/release/herdrdev/herdr?label=release&labelColor=333333&color=666666" alt="latest stable release" /></a>
-  <a href="https://formulae.brew.sh/formula/herdr"><img src="https://img.shields.io/homebrew/v/herdr?label=homebrew&labelColor=333333&color=666666" alt="Homebrew version" /></a>
-  <a href="https://x.com/herdrdev"><img src="https://img.shields.io/badge/follow-%40herdrdev-000000?logo=x&logoColor=white" alt="follow @herdrdev on X" /></a>
-</p>
+## What is in this preview?
 
----
+| Capability | Current behavior |
+| --- | --- |
+| Role-aware sidebar | Grouped, priority and role ordering; controller, worker and reviewer labels with icons and colors |
+| Job descriptions | Optional per-pane role and job metadata, with agent state beside it |
+| Visible pane identity | Pane borders remain visible even with one pane |
+| Private Radio | Bundled, pinned Radio runtime with separate state for each Watchtower server/session |
+| Agent Context | Optional pane with approximate session context information, refreshed every 30 seconds |
+| Separate installation | Watchtower configuration, sockets and runtime data are isolated from an existing Herdr installation |
+| Portable Windows package | App-local ConPTY, launchers, dependency notices and a file-hash manifest |
 
-https://github.com/user-attachments/assets/043ec09f-4bdd-41d5-aee0-8fda6b83e267
+Roles describe the work; they do not grant permissions or automatically assign
+tasks. A fresh installation starts without preconfigured teams or provider
+accounts. Agent Context is session context information, not remaining account
+quota.
 
-**the runtime your coding agents live on.**
+## Try it on Windows
 
-- **detach without stopping work** — herdr keeps terminals running in a background server when you close the client or lose your SSH connection. after a server or machine restart, herdr restores the saved layout and can resume supported agent sessions; the original processes do not survive. [session state →](https://herdr.dev/docs/session-state/)
-- **several machines, one window** — keep local work and saved ssh machines together, with a combined agent list and independent reconnects. [remote machines →](https://herdr.dev/docs/connecting-machines/)
-- **never hunt for the stuck one** — every pane is marked working, blocked, or idle. when an agent stops and needs an answer, herdr says so.
-- **agent-native** — agents drive herdr through the cli and socket api: they can spawn panes, prompt each other, and wait until another agent is genuinely blocked. [agent skill →](https://herdr.dev/docs/agent-skill/)
-- **runs what you already run** — claude code, codex, cursor, opencode, grok and the rest. herdr doesn't wrap or replace them; it owns their terminals.
-- **keyboard and mouse, both first-class** — tmux-style prefix keys *and* click, drag, split. pick per moment, not per tool.
-- **plugins** — extend panes and workflows. [browse the marketplace →](https://herdr.dev/plugins/)
-- **one rust binary, no electron** — runs in whatever terminal you already use.
+Prerequisites: Windows x64, Python 3.10+ for Radio, and the agent CLI tools you
+want to use. Their authentication remains managed by those tools.
 
----
+Extract a Watchtower preview ZIP into a writable folder, then run these commands
+from that folder in Windows Terminal:
 
-## install
-
-```bash
-curl -fsSL https://herdr.dev/install.sh | sh
+```powershell
+.\setup-radio.cmd
+.\open-watchtower.cmd
 ```
 
-or `brew install herdr` · `mise use -g herdr` · windows: `powershell -ExecutionPolicy Bypass -c "irm https://herdr.dev/install.ps1 | iex"` · [endpoint-protected Windows](https://herdr.dev/docs/windows-beta/) · [binaries](https://github.com/herdrdev/herdr/releases)
+Keep the whole archive together, including the `conpty` and `radio` directories.
+Setup registers the private plugin; it does not replace an existing Herdr/Radio
+installation, change the system PATH or import credentials. The included
+`herdr.exe` is a compatibility entry point for plugins and runs Watchtower too.
 
-then start it where the work lives:
+Inside a Watchtower pane, join an agent explicitly:
 
-```bash
-herdr
+```powershell
+radio join lead --provider codex --new
 ```
 
-run your agents, split panes, walk away. `ctrl+b q` detaches, `herdr` reattaches. [quick start →](https://herdr.dev/docs/quick-start/)
+Assign optional role and job metadata using the actual pane ID:
 
-## docs
-
-everything lives at [herdr.dev/docs](https://herdr.dev/docs/): [quick start](https://herdr.dev/docs/quick-start/) · [concepts](https://herdr.dev/docs/concepts/) · [supported agents](https://herdr.dev/docs/agents/) · [keyboard](https://herdr.dev/docs/keyboard/) · [configuration](https://herdr.dev/docs/configuration/) · [session state](https://herdr.dev/docs/session-state/) · [connecting machines](https://herdr.dev/docs/connecting-machines/) · [remote](https://herdr.dev/docs/persistence-remote/) · [integrations](https://herdr.dev/docs/integrations/) · [plugins](https://herdr.dev/docs/plugins/) · [socket api](https://herdr.dev/docs/socket-api/)
-
-## thanks
-
-every past sponsor and backer is listed in [SPONSORS.md](./SPONSORS.md) — thank you 🐑
-
-enterprise / partnership: hey@herdr.dev
-
-## agent instructions
-
-if you are an ai agent helping with this repository, read [`AGENTS.md`](./AGENTS.md) before making changes and read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening issues or PRs.
-
-## development
-
-```bash
-git clone https://github.com/herdrdev/herdr
-cd herdr
-cargo build --release
-
-just test        # unit tests
-just check       # formatting, tests, and maintenance checks
+```powershell
+.\watchtower.exe pane report-metadata w1:p1 --source watchtower --token 'team_role=👤 CONTROL' --token 'team_target=Coordination'
 ```
 
-## license
+Use `⚙ WORKER` or `🔎 REVIEW` for the other built-in role categories. Labels are
+metadata, so custom roles remain possible. See the
+[preview guide](distribution/watchtower/README.md) for runtime paths, named
+sessions, configuration and shutdown, and the
+[Radio guide](distribution/watchtower/radio/README.md) for communication and
+context panes.
 
-Herdr is licensed under the [Apache License 2.0](LICENSE).
+## Build from source
+
+This checkout retains the upstream default build. Select the Watchtower product
+explicitly with the `watchtower` feature:
+
+```powershell
+cargo build --release --locked --features watchtower
+pwsh -NoProfile -File scripts/watchtower_build_windows.ps1
+```
+
+The packaging script builds the Windows target and verifies its pinned Microsoft
+ConPTY package. Build prerequisites and optional arguments are in the
+[build guide](distribution/watchtower/README.md#building-the-preview).
+The manual **Watchtower Windows preview** workflow produces a downloadable
+artifact; it does not publish a release automatically.
+
+See the [validation report](distribution/watchtower/VALIDATION.md) for native
+isolation checks, test results and the known Windows ACL test limitation.
+
+## What comes next?
+
+The earlier local Herdr setup is a source of requirements, not a claim that every
+customization is already in this package. Follow-up work includes:
+
+- Reusable project/team templates with controller, worker and reviewer roles.
+- A dedicated Account Stats workspace, keeping quota details out of the sidebar.
+- Clear workspace communication boundaries and optional advanced channels.
+- Task-based review handoffs, with global review requested only when needed.
+- An explicit migration path for existing local team setups.
+
+The preview is local-only. Upstream self-updates, remote provisioning, detection
+catalog downloads and shared provider-hook modifications are disabled while
+Watchtower establishes its own distribution paths. There is no Watchtower
+installer or automatic update feed yet.
+
+## Origins and licensing
+
+Watchtower is independently maintained and is not an official Herdr release.
+The terminal engine comes from Herdr; communication comes from AgentRadio.
+Our changes focus on team presentation, product defaults, runtime isolation and
+packaging. Upstream history and copyright notices are preserved.
+
+The project retains the [Apache 2.0 license](LICENSE). AgentRadio retains its
+[MIT license](distribution/watchtower/radio/vendor/AgentRadio/LICENSE), and the
+portable package includes dependency notices. Exact upstream revisions are in
+[product.json](distribution/watchtower/product.json) and
+[Radio provenance](distribution/watchtower/radio/provenance.json); each ZIP
+records its source revision and file hashes in `BUILD-MANIFEST.json`.

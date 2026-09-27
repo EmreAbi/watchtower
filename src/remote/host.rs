@@ -1,9 +1,11 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 //! Remote-host side of the SSH stdio bridge.
 
 use std::io;
 use std::time::Duration;
 
 pub(crate) fn run_remote_client_bridge(args: &[String]) -> io::Result<()> {
+    super::ensure_remote_enabled()?;
     let idle_timeout = match args {
         [] => false,
         [option]

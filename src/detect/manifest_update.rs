@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
@@ -166,7 +167,14 @@ struct CatalogAgent {
 }
 
 pub(crate) fn auto_update(events: tokio::sync::mpsc::Sender<crate::events::AppEvent>) {
-    let result = check_and_update();
+    if cfg!(feature = "watchtower") {
+        return;
+    }
+    auto_update_from_catalog(events);
+}
+
+fn auto_update_from_catalog(events: tokio::sync::mpsc::Sender<crate::events::AppEvent>) {
+    let result = check_and_update_from_url(&catalog_url());
     let status = match result {
         Ok(output) => {
             let activated = agents_needing_cache_reload(&output);
@@ -233,6 +241,9 @@ pub(crate) struct ManifestUpdateOutput {
 }
 
 pub(crate) fn check_and_update() -> Result<ManifestUpdateOutput, String> {
+    if cfg!(feature = "watchtower") {
+        return Err("remote agent-detection updates are disabled for Watchtower preview; bundled detection remains available".into());
+    }
     check_and_update_from_url(&catalog_url())
 }
 
@@ -587,6 +598,25 @@ fn now_nanos() -> u128 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "watchtower")]
+    #[test]
+    fn watchtower_manifest_update_leaves_the_cache_untouched() {
+        with_state_dir("watchtower-no-update", || {
+            let status = status_path();
+            assert!(!status.exists());
+            assert!(check_and_update()
+                .unwrap_err()
+                .contains("Watchtower preview"));
+            let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+            auto_update(tx);
+            assert!(matches!(
+                rx.try_recv(),
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected)
+            ));
+            assert!(!status.exists());
+        });
+    }
     fn remote_manifest(version: &str, contains: &str) -> String {
         remote_manifest_for("codex", version, contains)
     }
@@ -710,7 +740,7 @@ path = "codex.toml"
             );
 
             let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-            auto_update(tx);
+            auto_update_from_catalog(tx);
 
             let event = rx.try_recv().expect("manifest update event");
             let crate::events::AppEvent::AgentDetectionManifestsUpdated { updated, .. } = event
@@ -780,7 +810,7 @@ path = "codex.toml"
             );
 
             let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-            auto_update(tx);
+            auto_update_from_catalog(tx);
 
             let event = rx.try_recv().expect("manifest update event");
             let crate::events::AppEvent::AgentDetectionManifestsUpdated { updated, .. } = event
@@ -858,7 +888,7 @@ path = "missing-cursor.toml"
             );
 
             let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-            auto_update(tx);
+            auto_update_from_catalog(tx);
 
             let event = rx.try_recv().expect("manifest update event");
             let crate::events::AppEvent::AgentDetectionManifestsUpdated {

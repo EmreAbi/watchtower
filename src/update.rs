@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 //! Self-update mechanism.
 //!
 //! Checks the hosted herdr.dev update manifest for newer versions.
@@ -2110,6 +2111,11 @@ fn homebrew_cellar_keg_root(path: &Path) -> Option<PathBuf> {
 
 /// Manual self-update command (`herdr update`).
 pub fn self_update(options: SelfUpdateOptions) -> Result<Version, String> {
+    // This portable preview must never install an official Herdr binary or
+    // restart an official runtime through the upstream update channel.
+    if cfg!(feature = "watchtower") {
+        return Err("self-update is disabled for Watchtower preview; install a new Watchtower preview package manually".into());
+    }
     let channel = UpdateChannel::configured();
 
     if is_homebrew_managed_install() {
@@ -2242,6 +2248,9 @@ fn print_outdated_integration_notice_with_updated_binary(updated_exe: &Path) {
 /// Background update check: only surface availability and release notes.
 /// Runs in a background thread at startup.
 pub fn auto_update(events: tokio::sync::mpsc::Sender<crate::events::AppEvent>) {
+    if cfg!(feature = "watchtower") {
+        return;
+    }
     crate::logging::update_check_started();
     if let Ok(version) = env::var(FAKE_UPDATE_VERSION_ENV) {
         let version = version.trim();
@@ -2317,6 +2326,29 @@ pub fn auto_update(events: tokio::sync::mpsc::Sender<crate::events::AppEvent>) {
         version: release.label().to_string(),
         install_command: update_install_command().to_string(),
     });
+}
+
+#[cfg(all(test, feature = "watchtower"))]
+mod watchtower_tests {
+    #[test]
+    fn watchtower_upstream_update_is_rejected_before_reading_config() {
+        for live_handoff in [false, true] {
+            let result = super::self_update(super::SelfUpdateOptions { live_handoff });
+            assert!(result
+                .unwrap_err()
+                .starts_with("self-update is disabled for Watchtower preview"));
+        }
+    }
+
+    #[test]
+    fn watchtower_background_update_does_not_emit_an_update() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        super::auto_update(tx);
+        assert!(matches!(
+            rx.try_recv(),
+            Err(tokio::sync::mpsc::error::TryRecvError::Disconnected)
+        ));
+    }
 }
 
 fn auto_update_homebrew(events: tokio::sync::mpsc::Sender<crate::events::AppEvent>) {

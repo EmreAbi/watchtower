@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use std::io;
 use std::path::PathBuf;
 
@@ -17,6 +18,7 @@ pub(crate) fn connect_saved_ssh(
     target: &str,
     session: &str,
 ) -> io::Result<SavedSshStream> {
+    super::ensure_remote_enabled()?;
     let ssh = validated_saved_ssh(profile_id, target, session)?;
     let remote_herdr = find_installed_remote_herdr(&ssh)?;
     let path = saved_bridge_path(profile_id);
@@ -42,6 +44,7 @@ pub(crate) struct SavedSshApiBridge {
 
 impl SavedSshApiBridge {
     pub(crate) fn start(profile_id: &str, target: &str, session: &str) -> io::Result<Self> {
+        super::ensure_remote_enabled()?;
         let ssh = validated_saved_ssh(profile_id, target, session)?;
         let remote_herdr = super::attach::find_installed_remote_api_herdr(&ssh, session)?;
         let command = super::attach::remote_api_bridge_command(&remote_herdr, session, false);

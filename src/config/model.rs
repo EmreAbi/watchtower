@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use std::{collections::BTreeSet, num::NonZeroUsize};
 
 use crossterm::event::KeyModifiers;
@@ -99,6 +100,17 @@ pub enum AgentPanelSortConfig {
     #[serde(alias = "workspaces")]
     Spaces,
     Priority,
+    Role,
+}
+
+impl AgentPanelSortConfig {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Spaces => Self::Priority,
+            Self::Priority => Self::Role,
+            Self::Role => Self::Spaces,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -1428,6 +1440,30 @@ agent_panel_scope = "current"
 "#;
         let config: Config = toml::from_str(toml).unwrap();
         assert_eq!(config.ui.agent_panel_sort, AgentPanelSortConfig::Spaces);
+    }
+
+    #[test]
+    fn role_sort_config_round_trips_and_cycles_back_to_spaces() {
+        let config: Config = toml::from_str("[ui]\nagent_panel_sort = \"role\"\n").unwrap();
+        assert_eq!(config.ui.agent_panel_sort, AgentPanelSortConfig::Role);
+        let json = serde_json::to_string(&config.ui.agent_panel_sort).unwrap();
+        assert_eq!(json, "\"role\"");
+        assert_eq!(
+            serde_json::from_str::<AgentPanelSortConfig>(&json).unwrap(),
+            AgentPanelSortConfig::Role
+        );
+        assert_eq!(
+            AgentPanelSortConfig::Spaces.next(),
+            AgentPanelSortConfig::Priority
+        );
+        assert_eq!(
+            AgentPanelSortConfig::Priority.next(),
+            AgentPanelSortConfig::Role
+        );
+        assert_eq!(
+            AgentPanelSortConfig::Role.next(),
+            AgentPanelSortConfig::Spaces
+        );
     }
 
     #[test]

@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 //! Application orchestration.
 //!
 //! - `state.rs` — AppState, Mode, and pure data structs
@@ -194,6 +195,8 @@ fn agent_panel_sort_from_config(
     match sort {
         crate::config::AgentPanelSortConfig::Spaces => state::AgentPanelSort::Spaces,
         crate::config::AgentPanelSortConfig::Priority => state::AgentPanelSort::Priority,
+        // Role ordering is client-owned; preserve the workspace order in snapshots.
+        crate::config::AgentPanelSortConfig::Role => state::AgentPanelSort::Spaces,
     }
 }
 
@@ -1344,6 +1347,14 @@ mod tests {
         );
 
         assert_eq!(app.state.agent_panel_sort, state::AgentPanelSort::Priority);
+    }
+
+    #[test]
+    fn role_sort_keeps_workspace_order_in_server_snapshots() {
+        assert_eq!(
+            agent_panel_sort_from_config(crate::config::AgentPanelSortConfig::Role),
+            state::AgentPanelSort::Spaces
+        );
     }
 
     #[test]

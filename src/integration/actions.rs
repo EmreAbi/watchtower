@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use std::io;
 
 use super::registry::{integration_target_label, integration_target_supported};
@@ -13,9 +14,20 @@ use super::targets::{
 use super::version::{agent_version_requirement, enforce_agent_version};
 use super::{KIMI_MIN_VERSION, PI_EXTENSION_INSTALL_NAME};
 
+fn ensure_shared_hook_mutation_allowed() -> io::Result<()> {
+    if cfg!(feature = "watchtower") {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "shared agent hook changes are disabled for Watchtower preview; existing compatible hooks and local agents remain available",
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn install_target(
     target: crate::api::schema::IntegrationTarget,
 ) -> io::Result<Vec<String>> {
+    ensure_shared_hook_mutation_allowed()?;
     let result = install_target_inner(target);
     let outcome = if result.is_ok() { "ok" } else { "error" };
     crate::logging::integration_action("install", integration_target_label(target), outcome);
@@ -25,6 +37,7 @@ pub(crate) fn install_target(
 /// Experimental Letta install that bypasses the frozen client endpoint
 /// `IntegrationTarget` enum. Fold into the agent registry when it lands.
 pub(crate) fn install_experimental_letta() -> io::Result<Vec<String>> {
+    ensure_shared_hook_mutation_allowed()?;
     let result = install_letta().map(|installed| {
         vec![
             format!(
@@ -44,6 +57,7 @@ pub(crate) fn install_experimental_letta() -> io::Result<Vec<String>> {
 
 /// Experimental Letta uninstall counterpart.
 pub(crate) fn uninstall_experimental_letta() -> io::Result<Vec<String>> {
+    ensure_shared_hook_mutation_allowed()?;
     let result = uninstall_letta().map(|result| {
         let mut messages = Vec::new();
         if result.removed_hook_file {
@@ -75,7 +89,9 @@ pub(crate) fn uninstall_experimental_letta() -> io::Result<Vec<String>> {
     result
 }
 
-fn install_target_inner(target: crate::api::schema::IntegrationTarget) -> io::Result<Vec<String>> {
+pub(super) fn install_target_inner(
+    target: crate::api::schema::IntegrationTarget,
+) -> io::Result<Vec<String>> {
     if !integration_target_supported(target) {
         return Err(io::Error::other(format!(
             "{} integration is not supported on Windows",
@@ -324,6 +340,13 @@ fn install_target_inner(target: crate::api::schema::IntegrationTarget) -> io::Re
 }
 
 pub(crate) fn uninstall_target(
+    target: crate::api::schema::IntegrationTarget,
+) -> io::Result<Vec<String>> {
+    ensure_shared_hook_mutation_allowed()?;
+    uninstall_target_inner(target)
+}
+
+pub(super) fn uninstall_target_inner(
     target: crate::api::schema::IntegrationTarget,
 ) -> io::Result<Vec<String>> {
     let messages = match target {

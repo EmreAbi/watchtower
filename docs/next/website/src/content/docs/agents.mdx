@@ -7,6 +7,20 @@ Herdr is built for running more than one coding agent at a time. Each agent stay
 
 To coordinate agents from scripts or from another agent, see [Agent automation](/docs/agent-automation/).
 
+## Agent list ordering
+
+Click the ordering label beside **agents** to cycle through **grouped**, **priority**,
+and **role**. The choice is remembered by the client. The default remains grouping
+by Space; `[ui] agent_panel_sort = "role"` selects role ordering for a new client.
+
+Role ordering puts controllers first, then workers, reviewers, and agents without
+a recognized role. It reads the `team_role` custom pane metadata token: `control`
+or `controller`, `worker`, and `review` or `reviewer`, case-insensitively. Existing
+icon-prefixed team badges are supported. Agents retain their original order within
+each role. This changes presentation only; it does not move panes or change agent
+permissions, tasks, or communication scopes. An explicit `agent.view.set` projection
+continues to take precedence over the built-in ordering options.
+
 ## Supported agents
 
 Automatic detection works out of the box for common coding agents. The table shows which signal determines `idle`, `working`, and `blocked` for each one.

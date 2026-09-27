@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 #[derive(Clone, Copy)]
 pub(crate) enum ConfigEdit<'a> {
     Theme(&'a str),
@@ -57,7 +58,7 @@ pub(crate) fn update_file_at(
     }
     let content = match super::io::read_optional_config(path) {
         Ok(Some(content)) => content,
-        Ok(None) => String::new(),
+        Ok(None) => super::io::initial_config_content().to_string(),
         Err(error) => {
             return Err(format!(
                 "failed to read config before saving {description}: {error}"

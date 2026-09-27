@@ -1,0 +1,10 @@
+{
+  "name": "Watchtower",
+  "version": "0.1.0-preview.1",
+  "repository": "https://github.com/EmreAbi/watchtower",
+  "upstream": {
+    "repository": "https://github.com/herdrdev/herdr",
+    "version": "0.9.1",
+    "commit": "065ef9d6a531c49fb8bee7e818ef837065b21ee9"
+  }
+}

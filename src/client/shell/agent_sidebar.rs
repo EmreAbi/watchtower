@@ -1,3 +1,4 @@
+// Watchtower modifications: independent preview identity, isolation or role presentation.
 use std::collections::HashMap;
 
 use ratatui::{
@@ -15,6 +16,26 @@ pub(super) struct AgentRow {
     pub(super) status: crate::api::schema::AgentStatus,
     pub(super) focused: bool,
     pub(super) rows: Vec<Vec<crate::ui::ResolvedToken>>,
+}
+
+/// Canonical team metadata only: names and other tokens never imply a role.
+pub(super) fn agent_role_rank(tokens: &[(String, String)]) -> u8 {
+    let Some((_, value)) = tokens.iter().find(|(key, _)| key == "team_role") else {
+        return 3;
+    };
+    let role = value
+        .trim()
+        .trim_start_matches(['👤', '⚙', '🔎', '\u{fe0f}'])
+        .trim();
+    if role.eq_ignore_ascii_case("control") || role.eq_ignore_ascii_case("controller") {
+        0
+    } else if role.eq_ignore_ascii_case("worker") {
+        1
+    } else if role.eq_ignore_ascii_case("review") || role.eq_ignore_ascii_case("reviewer") {
+        2
+    } else {
+        3
+    }
 }
 
 pub(super) fn ordered_agent_pane_ids(
@@ -42,6 +63,8 @@ pub(super) fn ordered_agent_pane_ids(
                 std::cmp::Reverse(agent.state_change_seq),
             )
         });
+    } else if sort == crate::config::AgentPanelSortConfig::Role {
+        agents.sort_by_key(|agent| agent_role_rank(&agent.tokens));
     }
     agents
         .into_iter()
@@ -121,6 +144,7 @@ pub(super) fn render_agent_panel_header(
     let sort_label = agent_view_label.unwrap_or(match config.agent_panel_sort {
         crate::config::AgentPanelSortConfig::Spaces => "grouped",
         crate::config::AgentPanelSortConfig::Priority => "priority",
+        crate::config::AgentPanelSortConfig::Role => "role",
     });
     let sort_width = display_width(sort_label).min(area.width as usize) as u16;
     let sort_rect = Rect::new(
@@ -392,5 +416,150 @@ fn sidebar_status_text(status: crate::api::schema::AgentStatus) -> &'static str 
         AgentStatus::Done => "done",
         AgentStatus::Working => "working",
         AgentStatus::Idle | AgentStatus::Unknown => "idle",
+    }
+}
+
+#[cfg(test)]
+mod role_tests {
+    use super::*;
+    use crate::api::schema::AgentStatus;
+    use crate::config::AgentPanelSortConfig;
+    use crate::protocol::ClientShellAgent;
+
+    fn agent(pane_id: &str, role: Option<&str>, status: AgentStatus) -> ClientShellAgent {
+        ClientShellAgent {
+            pane_id: pane_id.into(),
+            workspace_id: "ws_1".into(),
+            tab_id: "tab_1".into(),
+            name: Some("controller-reviewer-worker".into()),
+            display_agent: None,
+            agent: Some("codex".into()),
+            title: None,
+            terminal_title: None,
+            terminal_title_stripped: None,
+            agent_status: status,
+            state_change_seq: 1,
+            state_labels: Vec::new(),
+            tokens: role
+                .map(|role| vec![("team_role".into(), role.into())])
+                .unwrap_or_default(),
+            focused: false,
+        }
+    }
+
+    #[test]
+    fn role_rank_accepts_canonical_badges_and_exact_plain_aliases() {
+        for (value, expected) in [
+            ("👤  CONTROL", 0),
+            (" ControlLER ", 0),
+            ("control", 0),
+            ("⚙  WORKER", 1),
+            ("⚙️  WORKER", 1),
+            ("worker", 1),
+            ("🔎  REVIEW", 2),
+            ("Reviewer", 2),
+            ("review", 2),
+            ("", 3),
+            ("lead", 3),
+            ("review pending", 3),
+            ("unassigned", 3),
+        ] {
+            assert_eq!(
+                agent_role_rank(&[("team_role".into(), value.into())]),
+                expected,
+                "{value}"
+            );
+        }
+        assert_eq!(agent_role_rank(&[]), 3);
+        assert_eq!(agent_role_rank(&[("role".into(), "control".into())]), 3);
+    }
+
+    #[test]
+    fn role_order_is_stable_and_does_not_infer_names_or_prioritize_status() {
+        let mut snapshot = super::super::tests::snapshot();
+        snapshot.agents = vec![
+            agent("unknown", None, AgentStatus::Blocked),
+            agent("worker-1", Some("worker"), AgentStatus::Idle),
+            agent("reviewer", Some("reviewer"), AgentStatus::Done),
+            agent("controller-1", Some("control"), AgentStatus::Idle),
+            agent("worker-2", Some("⚙  WORKER"), AgentStatus::Blocked),
+            agent("controller-2", Some("👤  CONTROL"), AgentStatus::Working),
+        ];
+        // Different workspaces retain the snapshot's order within each role.
+        snapshot.agents[4].workspace_id = "ws_2".into();
+        assert_eq!(
+            ordered_agent_pane_ids(&snapshot, AgentPanelSortConfig::Role),
+            [
+                "controller-1",
+                "controller-2",
+                "worker-1",
+                "worker-2",
+                "reviewer",
+                "unknown"
+            ]
+        );
+        assert_eq!(
+            ordered_agent_pane_ids(&snapshot, AgentPanelSortConfig::Spaces),
+            [
+                "unknown",
+                "worker-1",
+                "reviewer",
+                "controller-1",
+                "worker-2",
+                "controller-2"
+            ]
+        );
+        assert_eq!(
+            ordered_agent_pane_ids(&snapshot, AgentPanelSortConfig::Priority)[0],
+            "unknown"
+        );
+        snapshot.agents[0].tokens = vec![("team_role".into(), "control".into())];
+        assert_eq!(
+            ordered_agent_pane_ids(&snapshot, AgentPanelSortConfig::Role)[0],
+            "unknown"
+        );
+    }
+
+    #[test]
+    fn role_order_respects_explicit_agent_view_projection() {
+        let mut snapshot = super::super::tests::snapshot();
+        snapshot.agents = vec![
+            agent("controller", Some("control"), AgentStatus::Idle),
+            agent("reviewer", Some("review"), AgentStatus::Idle),
+        ];
+        snapshot.agent_view_label = Some("custom".into());
+        snapshot.agent_order = vec!["reviewer".into(), "missing".into(), "controller".into()];
+        assert_eq!(
+            ordered_agent_pane_ids(&snapshot, AgentPanelSortConfig::Role),
+            ["reviewer", "controller"]
+        );
+    }
+
+    #[test]
+    fn role_header_has_native_toggle_unless_custom_view_is_active() {
+        let mut config = ClientShellConfig::from_config(&Config::default());
+        config.agent_panel_sort = AgentPanelSortConfig::Role;
+        config.mouse_capture = true;
+        let area = Rect::new(0, 0, 30, 3);
+        let mut buffer = Buffer::empty(area);
+        let mut hits = ShellHitMap::default();
+        assert!(render_agent_panel_header(
+            &mut buffer,
+            area,
+            None,
+            &config,
+            &mut hits
+        ));
+        assert_eq!(hits.agent_sort_toggle, Rect::new(26, 1, 4, 1));
+        let text: String = (26..30).map(|x| buffer[(x, 1)].symbol()).collect();
+        assert_eq!(text, "role");
+        assert!(render_agent_panel_header(
+            &mut buffer,
+            area,
+            Some("custom"),
+            &config,
+            &mut hits
+        ));
+        assert_eq!(hits.agent_sort_toggle, Rect::default());
     }
 }
