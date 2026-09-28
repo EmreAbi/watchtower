@@ -1,0 +1,263 @@
+{
+  "id": "code-review",
+  "name": "Code Review",
+  "version": 1,
+  "description": "20 synthetic review snippets, including four clean controls; precise findings and false alarms both count.",
+  "capability": "code-review",
+  "grading_version": "1",
+  "provenance": "Hand-authored synthetic fixtures; no customer, personal or production records.",
+  "limitations": "Fixed examples measure a constrained capability, not general intelligence, production readiness or security certification.",
+  "quick_case_ids": [
+    "01-threshold",
+    "02-empty-mean",
+    "03-sort-mutation",
+    "04-sql-interpolation",
+    "05-clean-clamp"
+  ],
+  "cases": [
+    {
+      "id": "01-threshold",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Free shipping applies to totals >= 50; otherwise fee 5. Total is nonnegative.\nSource:\n1: def shipping(total):\n2:     return 0 if total > 50 else 5",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "boundary"
+          }
+        ]
+      }
+    },
+    {
+      "id": "02-empty-mean",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: For an empty numeric list return 0.0; otherwise arithmetic mean.\nSource:\n1: def mean(values):\n2:     return sum(values) / len(values)",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "null-handling"
+          }
+        ]
+      }
+    },
+    {
+      "id": "03-sort-mutation",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Return a sorted list without changing the caller-owned input.\nSource:\n1: def ordered(values):\n2:     values.sort()\n3:     return values",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "mutation"
+          }
+        ]
+      }
+    },
+    {
+      "id": "04-sql-interpolation",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: name is untrusted user input. Return a safe parameterized lookup query and its parameter tuple.\nSource:\n1: def lookup(name):\n2:     return \"SELECT id FROM items WHERE name = '\" + name + \"'\", ()",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "security"
+          }
+        ]
+      }
+    },
+    {
+      "id": "05-clean-clamp",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Inputs are integers with low <= high; clamp inclusively.\nSource:\n1: def clamp(value, low, high):\n2:     return min(max(value, low), high)",
+      "expected": {
+        "findings": []
+      }
+    },
+    {
+      "id": "06-discount",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Return price AFTER the given percentage discount. Price >= 0, percent in 0..100.\nSource:\n1: def discounted(price, percent):\n2:     return price * percent / 100",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "arithmetic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "07-unclosed-file",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Read a UTF-8 file and guarantee closure even if read fails. open is available.\nSource:\n1: def read_text(path):\n2:     stream = open(path, encoding=\"utf-8\")\n3:     return stream.read()",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "resource"
+          }
+        ]
+      }
+    },
+    {
+      "id": "08-string-identity",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Compare string VALUES, regardless of interning or object identity.\nSource:\n1: def same(a, b):\n2:     return a is b",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "logic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "09-authorization",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Allow admin OR owner roles; deny every other role. role is a string.\nSource:\n1: def allowed(role):\n2:     if role != \"admin\" or role != \"owner\":\n3:         return False\n4:     return True",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "logic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "10-exclusive-end",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Return all integers start <= x < end. start <= end.\nSource:\n1: def interval(start, end):\n2:     return list(range(start, end + 1))",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "boundary"
+          }
+        ]
+      }
+    },
+    {
+      "id": "11-nullable-name",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Return empty string for None; otherwise strip a string.\nSource:\n1: def normalize(value):\n2:     return value.strip()",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "null-handling"
+          }
+        ]
+      }
+    },
+    {
+      "id": "12-clean-sql",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: name is untrusted. SQLite-style query tuple must use parameters.\nSource:\n1: def lookup(name):\n2:     return \"SELECT id FROM items WHERE name = ?\", (name,)",
+      "expected": {
+        "findings": []
+      }
+    },
+    {
+      "id": "13-clean-file",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Read a UTF-8 file and guarantee closure even if read fails.\nSource:\n1: def read_text(path):\n2:     with open(path, encoding=\"utf-8\") as stream:\n3:         return stream.read()",
+      "expected": {
+        "findings": []
+      }
+    },
+    {
+      "id": "14-default-list",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Calling collect(item) without an explicit items argument must use a fresh list each time.\nSource:\n1: def collect(item, items=[]):\n2:     items.append(item)\n3:     return items",
+      "expected": {
+        "findings": [
+          {
+            "line": 1,
+            "category": "mutation"
+          }
+        ]
+      }
+    },
+    {
+      "id": "15-shell-input",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: subprocess is available. filename is untrusted and must be a literal command argument, not shell syntax.\nSource:\n1: def convert(filename):\n2:     return subprocess.run(\"converter \" + filename, shell=True)",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "security"
+          }
+        ]
+      }
+    },
+    {
+      "id": "16-wrong-distance",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Return Manhattan distance for arbitrary integer coordinate pairs.\nSource:\n1: def distance(ax, ay, bx, by):\n2:     return (ax - bx) + (ay - by)",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "arithmetic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "17-last-index",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: values is a nonempty list. Return its last element.\nSource:\n1: def last(values):\n2:     return values[len(values)]",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "boundary"
+          }
+        ]
+      }
+    },
+    {
+      "id": "18-mean-denominator",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: values contains at least TWO numeric entries. Return arithmetic mean.\nSource:\n1: def mean(values):\n2:     return sum(values) / (len(values) - 1)",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "arithmetic"
+          }
+        ]
+      }
+    },
+    {
+      "id": "19-clean-sorted",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: Return a sorted list without modifying the caller input.\nSource:\n1: def ordered(values):\n2:     return sorted(values)",
+      "expected": {
+        "findings": []
+      }
+    },
+    {
+      "id": "20-payment",
+      "capability": "code-review",
+      "prompt": "Review only violations of the stated contract. Ignore style and missing imports when names are stated available. Return exactly JSON {\"findings\":[{\"line\":<positive integer>,\"category\":<string>}]}. Use the earliest faulty source line for each distinct defect. Categories: boundary (wrong endpoint/index/comparison threshold), null-handling (missing required None/empty guard), mutation (unwanted caller/shared mutable state), security (untrusted data interpreted as SQL/shell syntax), resource (required resource closure missing), arithmetic (wrong mathematical formula), logic (other incorrect boolean/value logic). Clean code returns {\"findings\":[]}; do not invent issues.\nContract: For nonnegative integer balance/price, subtract price when balance >= price; otherwise leave balance unchanged.\nSource:\n1: def pay(balance, price):\n2:     if balance > price:\n3:         return balance + price\n4:     return balance",
+      "expected": {
+        "findings": [
+          {
+            "line": 2,
+            "category": "boundary"
+          },
+          {
+            "line": 3,
+            "category": "arithmetic"
+          }
+        ]
+      }
+    }
+  ]
+}

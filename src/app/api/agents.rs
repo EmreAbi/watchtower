@@ -3,8 +3,8 @@ use std::time::Duration;
 use bytes::Bytes;
 
 use crate::api::schema::{
-    AgentPromptParams, AgentRenameParams, AgentSendKeysParams, AgentStartParams, AgentTarget,
-    PaneReadResult, ResponseResult,
+    AgentPromptParams, AgentQuitIfIdleParams, AgentRenameParams, AgentSendKeysParams,
+    AgentStartParams, AgentTarget, PaneReadResult, ResponseResult,
 };
 use crate::app::App;
 
@@ -89,8 +89,25 @@ impl App {
         };
         match self.queue_agent_prompt(request.id, params) {
             Ok((id, agent, completion)) => {
+                let terminal_id = agent.terminal_id.clone();
+                let pending = self.pending_agent_prompt_submissions.clone();
+                *pending
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .entry(terminal_id.clone())
+                    .or_default() += 1;
                 std::thread::spawn(move || {
-                    let response = match completion.recv() {
+                    let completed = completion.recv();
+                    {
+                        let mut pending = pending.lock().unwrap_or_else(|error| error.into_inner());
+                        if let Some(count) = pending.get_mut(&terminal_id) {
+                            *count -= 1;
+                            if *count == 0 {
+                                pending.remove(&terminal_id);
+                            }
+                        }
+                    }
+                    let response = match completed {
                         Ok(Ok(())) => encode_success(id, ResponseResult::AgentPrompted { agent }),
                         Ok(Err(err)) if err.kind() == std::io::ErrorKind::TimedOut => {
                             encode_error(id, "timeout", err.to_string())
@@ -327,6 +344,103 @@ impl App {
         encode_success(id, ResponseResult::AgentExplain { explain: value })
     }
 
+    /// Validate and enqueue in the same app dispatch. Unlike agent.prompt this
+    /// sends only a native exit key, without a delayed Enter or clearing a draft.
+    pub(super) fn handle_agent_quit_if_idle(
+        &mut self,
+        id: String,
+        params: AgentQuitIfIdleParams,
+    ) -> String {
+        use crate::api::schema::AgentStatus;
+        let resolved = match self.resolve_agent_target(&params.target) {
+            Ok(resolved) => resolved,
+            Err(err) => return encode_error_body(id, self.agent_target_error_body(err)),
+        };
+        let Some(agent) = self.agent_info(resolved.ws_idx, resolved.pane_id) else {
+            return agent_not_found(id, &params.target);
+        };
+        let matches_session = |session: &crate::api::schema::AgentSessionInfo| {
+            session.source == "herdr:codex"
+                && session.agent == "codex"
+                && session.kind == crate::agent_resume::AgentSessionRefKind::Id
+                && !params.session_id.is_empty()
+                && session.value == params.session_id
+        };
+        if agent.terminal_id != params.terminal_id
+            || agent.agent.as_deref() != Some("codex")
+            || agent.state_change_seq != params.state_change_seq
+            || !agent.agent_session.as_ref().is_some_and(matches_session)
+        {
+            return encode_error(
+                id,
+                "agent_quit_identity_changed",
+                "The agent identity or state changed; no exit key was sent.",
+            );
+        }
+        let pending = self
+            .pending_agent_prompt_submissions
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .get(&agent.terminal_id)
+            .copied()
+            .unwrap_or_default();
+        if !matches!(agent.agent_status, AgentStatus::Idle | AgentStatus::Done)
+            || agent.launch_pending
+            || pending > 0
+        {
+            return encode_error(
+                id,
+                "agent_quit_busy",
+                "The agent is busy, pending input, or not idle; no exit key was sent.",
+            );
+        }
+        if self.collect_agent_infos().iter().any(|other| {
+            other.terminal_id != agent.terminal_id
+                && other.agent.as_deref() == Some("codex")
+                && other.agent_session.as_ref().is_some_and(matches_session)
+        }) {
+            return encode_error(
+                id,
+                "agent_quit_session_in_use",
+                "The conversation is also open in another terminal; no exit key was sent.",
+            );
+        }
+        let Some(runtime) = self.lookup_runtime_sender(resolved.ws_idx, resolved.pane_id) else {
+            return agent_not_found(id, &params.target);
+        };
+        if !super::super::agents::runtime_hosts_agent(runtime, crate::detect::Agent::Codex) {
+            return encode_error(
+                id,
+                "agent_quit_unverified",
+                "The native Codex process could not be verified; no exit key was sent.",
+            );
+        }
+        if params.check_only {
+            return encode_success(id, ResponseResult::Ok {});
+        }
+        let encoded = match crate::app::api_helpers::encode_api_keys(runtime, &["ctrl+d".into()]) {
+            Ok(encoded) => encoded,
+            Err(_) => {
+                return encode_error(
+                    id,
+                    "agent_quit_failed",
+                    "The native exit key could not be encoded.",
+                )
+            }
+        };
+        let bytes: Vec<u8> = encoded.into_iter().flatten().collect();
+        if bytes.is_empty() || runtime.try_send_bytes(Bytes::from(bytes)).is_err() {
+            return encode_error(
+                id,
+                "agent_quit_failed",
+                "The native exit key could not be queued; inspect the pane before retrying.",
+            );
+        }
+        // This acknowledges the key only. Callers must verify the original shell
+        // before copying a conversation or launching another account.
+        encode_success(id, ResponseResult::Ok {})
+    }
+
     pub(super) fn handle_agent_send_keys(
         &mut self,
         id: String,
@@ -415,6 +529,162 @@ mod tests {
         app.state.selected = 0;
         app.state.mode = Mode::Terminal;
         app
+    }
+
+    fn idle_codex_exit_fixture() -> (
+        App,
+        AgentQuitIfIdleParams,
+        tokio::sync::mpsc::Receiver<Bytes>,
+    ) {
+        let mut app = app_with_agent();
+        let pane_id = app.state.workspaces[0].tabs[0].root_pane;
+        let terminal_id = app.state.workspaces[0].tabs[0].panes[&pane_id]
+            .attached_terminal_id
+            .clone();
+        let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
+        terminal.set_agent_session_ref(
+            "herdr:codex".into(),
+            "codex".into(),
+            crate::agent_resume::AgentSessionRef::id("01234567-89ab-cdef-0123-456789abcdef"),
+            Some(1),
+        );
+        terminal.last_agent_state_change_seq = Some(42);
+        let (runtime, rx) = crate::terminal::TerminalRuntime::test_with_channel(80, 24);
+        app.state.insert_test_runtime(pane_id, runtime);
+        let agent = app.agent_info(0, pane_id).unwrap();
+        let params = AgentQuitIfIdleParams {
+            target: agent.pane_id,
+            terminal_id: agent.terminal_id,
+            session_id: agent.agent_session.unwrap().value,
+            state_change_seq: 42,
+            check_only: false,
+        };
+        (app, params, rx)
+    }
+
+    #[tokio::test]
+    async fn agent_quit_if_idle_check_sends_nothing_and_exit_sends_only_control_d() {
+        let (mut app, mut params, mut rx) = idle_codex_exit_fixture();
+        params.check_only = true;
+        let checked = app.handle_agent_quit_if_idle("check".into(), params.clone());
+        let success: SuccessResponse = serde_json::from_str(&checked).unwrap();
+        assert!(matches!(success.result, ResponseResult::Ok {}));
+        assert!(rx.try_recv().is_err());
+        params.check_only = false;
+        let result = app.handle_agent_quit_if_idle("exit".into(), params);
+        let success: SuccessResponse = serde_json::from_str(&result).unwrap();
+        assert!(matches!(success.result, ResponseResult::Ok {}));
+        assert_eq!(rx.try_recv().unwrap(), Bytes::from_static(b"\x04"));
+        assert!(
+            rx.try_recv().is_err(),
+            "no clearing keys, prompt, Enter, or retry"
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_quit_if_idle_changed_identity_never_writes() {
+        for change in 0..3 {
+            let (mut app, mut params, mut rx) = idle_codex_exit_fixture();
+            match change {
+                0 => params.terminal_id = "other".into(),
+                1 => params.session_id = "other".into(),
+                _ => params.state_change_seq += 1,
+            }
+            let result = app.handle_agent_quit_if_idle("exit".into(), params);
+            let result: crate::api::schema::ErrorResponse = serde_json::from_str(&result).unwrap();
+            assert_eq!(result.error.code, "agent_quit_identity_changed");
+            assert!(rx.try_recv().is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn agent_quit_if_idle_busy_or_unverified_never_writes() {
+        for state in [
+            AgentState::Working,
+            AgentState::Blocked,
+            AgentState::Unknown,
+        ] {
+            let (mut app, params, mut rx) = idle_codex_exit_fixture();
+            let pane_id = app.state.workspaces[0].tabs[0].root_pane;
+            let terminal_id = app.state.workspaces[0].tabs[0].panes[&pane_id]
+                .attached_terminal_id
+                .clone();
+            let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
+            terminal.set_detected_state(Some(Agent::Codex), state);
+            let result = app.handle_agent_quit_if_idle("exit".into(), params);
+            let result: crate::api::schema::ErrorResponse = serde_json::from_str(&result).unwrap();
+            assert_eq!(result.error.code, "agent_quit_busy");
+            assert!(rx.try_recv().is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn agent_quit_if_idle_rejects_pending_submission_and_duplicate_session() {
+        let (mut app, params, mut rx) = idle_codex_exit_fixture();
+        app.pending_agent_prompt_submissions
+            .lock()
+            .unwrap()
+            .insert(params.terminal_id.clone(), 1);
+        let result = app.handle_agent_quit_if_idle("exit".into(), params.clone());
+        let result: crate::api::schema::ErrorResponse = serde_json::from_str(&result).unwrap();
+        assert_eq!(result.error.code, "agent_quit_busy");
+        assert!(rx.try_recv().is_err());
+        app.pending_agent_prompt_submissions.lock().unwrap().clear();
+        app.state.workspaces.push(Workspace::test_new("duplicate"));
+        app.state.ensure_test_terminals();
+        let pane_id = app.state.workspaces[1].tabs[0].root_pane;
+        let terminal_id = app.state.workspaces[1].tabs[0].panes[&pane_id]
+            .attached_terminal_id
+            .clone();
+        let terminal = app.state.terminals.get_mut(&terminal_id).unwrap();
+        terminal.set_detected_state(Some(Agent::Codex), AgentState::Idle);
+        terminal.set_agent_session_ref(
+            "herdr:codex".into(),
+            "codex".into(),
+            crate::agent_resume::AgentSessionRef::id(&params.session_id),
+            Some(1),
+        );
+        let result = app.handle_agent_quit_if_idle("exit".into(), params);
+        let result: crate::api::schema::ErrorResponse = serde_json::from_str(&result).unwrap();
+        assert_eq!(result.error.code, "agent_quit_session_in_use");
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn agent_quit_if_idle_queued_prompt_is_tracked_until_submission_finishes() {
+        let (mut app, params, mut rx) = idle_codex_exit_fixture();
+        let response = start_deferred_agent_prompt(
+            &mut app,
+            "prompt",
+            AgentPromptParams {
+                target: params.target.clone(),
+                text: "synthetic task".into(),
+                wait: None,
+            },
+        );
+        assert_eq!(
+            app.pending_agent_prompt_submissions
+                .lock()
+                .unwrap()
+                .get(&params.terminal_id),
+            Some(&1)
+        );
+        let result = app.handle_agent_quit_if_idle("exit".into(), params.clone());
+        let result: crate::api::schema::ErrorResponse = serde_json::from_str(&result).unwrap();
+        assert_eq!(result.error.code, "agent_quit_busy");
+        response.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(app
+            .pending_agent_prompt_submissions
+            .lock()
+            .unwrap()
+            .is_empty());
+        while let Ok(bytes) = rx.try_recv() {
+            assert!(
+                !bytes.contains(&4),
+                "the queued task must not receive an exit key"
+            );
+        }
     }
 
     fn start_deferred_agent_prompt(

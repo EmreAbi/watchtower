@@ -256,7 +256,10 @@ impl ClientShellState {
         };
         let hyperlink = hyperlink_at(target.col, target.row)?;
         let uri = surface.frame.hyperlinks.get(hyperlink as usize)?;
-        if crate::app::actions::safe_web_url(uri).is_none() {
+        if crate::app::actions::safe_web_url(uri)
+            .or_else(|| crate::app::actions::local_file_url(uri))
+            .is_none()
+        {
             return Some(Vec::new());
         }
         let width = usize::from(rect.width);

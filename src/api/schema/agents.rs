@@ -22,6 +22,17 @@ pub struct AgentSendKeysParams {
     pub keys: Vec<String>,
 }
 
+/// Identity-bound Codex exit. A successful check never sends terminal input.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct AgentQuitIfIdleParams {
+    pub target: String,
+    pub terminal_id: String,
+    pub session_id: String,
+    pub state_change_seq: u64,
+    #[serde(default)]
+    pub check_only: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AgentWaitParams {
     pub target: String,

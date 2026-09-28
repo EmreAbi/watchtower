@@ -12,14 +12,19 @@ with [AgentRadio](https://github.com/detailles/AgentRadio) for communication.
 Herdr provides the terminal runtime; this project develops its own defaults,
 team experience and release path.
 
-> **Status: Windows preview `0.1.0-preview.1`.** Based on Herdr `0.9.1`, with
+> **Status: Windows preview `0.1.0-preview.2`.** Based on Herdr `0.9.1`, with
 > AgentRadio `0.7.1`. This is a portable development preview, not a stable release.
 
 ## What is in this preview?
 
 | Capability | Current behavior |
 | --- | --- |
-| Role-aware sidebar | Grouped, priority and role ordering; controller, worker and reviewer labels with icons and colors |
+| Role-aware sidebar | Dropdown for workspace, attention, role, recent activity and name ordering; controller, worker and reviewer labels with icons and colors |
+| Accounts | Codex, OpenCode, Gemini and Claude profiles; quota where supported; account and model selection; reviewed idle Codex account switching |
+| Results and outputs | Per-pane Results button, readable answers and history, artifact previews and file actions |
+| Teams | Quick Task, Research and Development templates with explicit roles and independent review |
+| Model Lab | Fixed local and published benchmark subsets, single-model runs, comparisons, scoring and a test-case viewer |
+| Workspace organization | Custom Spaces groups and rename, plus a persistent Current workspace only agent filter |
 | Job descriptions | Optional per-pane role and job metadata, with agent state beside it |
 | Visible pane identity | Pane borders remain visible even with one pane |
 | Private Radio | Bundled, pinned Radio runtime with separate state for each Watchtower server/session |
@@ -32,16 +37,25 @@ tasks. A fresh installation starts without preconfigured teams or provider
 accounts. Agent Context is session context information, not remaining account
 quota.
 
+Click the agent list's ordering label (for example, **role ▾**) to choose an
+order directly. **Needs attention first** brings blocked agents and unseen
+results forward; **Recently changed** follows agent state changes; **Name
+(A–Z)** helps find a known agent. The current choice is checked and saved for
+the local endpoint. Use arrow keys and Enter in the menu, or Escape to cancel.
+Explicit custom agent views retain their own ordering.
+
 ## Try it on Windows
 
 Prerequisites: Windows x64, Python 3.10+ for Radio, and the agent CLI tools you
-want to use. Their authentication remains managed by those tools.
+want to use. Their authentication remains managed by those tools. Account and
+benchmark panels also need the optional Textual UI dependency installed by setup.
 
 Extract a Watchtower preview ZIP into a writable folder, then run these commands
 from that folder in Windows Terminal:
 
 ```powershell
 .\setup-radio.cmd
+.\setup-accounts.cmd
 .\open-watchtower.cmd
 ```
 
@@ -88,21 +102,30 @@ artifact; it does not publish a release automatically.
 See the [validation report](distribution/watchtower/VALIDATION.md) for native
 isolation checks, test results and the known Windows ACL test limitation.
 
-## What comes next?
+## Preview boundaries and next steps
 
-The earlier local Herdr setup is a source of requirements, not a claim that every
-customization is already in this package. Follow-up work includes:
+The preview is Windows x64 and local-only. Upstream self-updates, remote
+provisioning, detection catalog downloads and shared provider-hook modifications
+are disabled. There is no Watchtower installer or automatic update feed yet.
 
-- Reusable project/team templates with controller, worker and reviewer roles.
-- A dedicated Account Stats workspace, keeping quota details out of the sidebar.
-- Clear workspace communication boundaries and optional advanced channels.
-- Task-based review handoffs, with global review requested only when needed.
-- An explicit migration path for existing local team setups.
+Results currently reads Codex structured records; other providers retain their
+terminal view. Same-provider account switching initially supports idle native
+Codex agents in Windows PowerShell. First-use login or folder-trust screens can
+still require interaction. Accounts never transfers credentials between profiles.
 
-The preview is local-only. Upstream self-updates, remote provisioning, detection
-catalog downloads and shared provider-hook modifications are disabled while
-Watchtower establishes its own distribution paths. There is no Watchtower
-installer or automatic update feed yet.
+Next steps include wider provider Results support, more account-switch adapters,
+and a documented migration and update path. Global review stays optional.
+
+## Privacy and local data
+
+The portable package is built from explicit runtime allowlists. It contains no
+user accounts, credentials, conversations, workspaces or private benchmark data.
+These stay in the user's local data directories. Custom benchmark source names,
+references and hashes belong in local manifests, outside this repository.
+Published benchmark subsets include their source attribution and limitations.
+
+The [release validation](distribution/watchtower/VALIDATION.md) records the
+checked source revision, test coverage, privacy audit scope and known limits.
 
 ## Origins and licensing
 

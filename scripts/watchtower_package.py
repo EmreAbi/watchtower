@@ -16,9 +16,17 @@ import zipfile
 try:
     from . import package_windows_conpty as conpty
     from .watchtower_radio import validated_radio_files
+    from .watchtower_accounts import validated_accounts_files
+    from .watchtower_results import validated_results_files
+    from .watchtower_teams import validated_teams_files
+    from .watchtower_benchmarks import validated_benchmark_files
 except ImportError:
     import package_windows_conpty as conpty
     from watchtower_radio import validated_radio_files
+    from watchtower_accounts import validated_accounts_files
+    from watchtower_results import validated_results_files
+    from watchtower_teams import validated_teams_files
+    from watchtower_benchmarks import validated_benchmark_files
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,6 +59,7 @@ def package_preview(
     *,
     root: Path = ROOT,
     provenance: dict | None = None,
+    require_clean_source: bool = False,
 ) -> dict:
     """Copy only allowlisted application files; never copy settings or sessions."""
     product = json.loads((root / "distribution/watchtower/product.json").read_text())
@@ -60,6 +69,8 @@ def package_preview(
     source = provenance if provenance is not None else source_state(root)
     if not re.fullmatch(r"[a-f0-9]{40}", source["commit"]):
         raise ValueError("source commit must be a full Git SHA")
+    if require_clean_source and source.get("dirty") is not False:
+        raise ValueError("release packaging requires a clean source checkout")
     if output.exists() or output.with_suffix(output.suffix + ".sha256").exists():
         raise ValueError("output already exists; choose a new artifact path")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -95,6 +106,31 @@ def package_preview(
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(path, destination)
             radio_provenance = json.loads((stage / "radio/provenance.json").read_text(encoding="utf-8"))
+        accounts_root = root / "distribution/watchtower/accounts"
+        if accounts_root.exists():
+            for path in validated_accounts_files(accounts_root):
+                destination = stage / "accounts" / path.relative_to(accounts_root)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, destination)
+            shutil.copyfile(root / "distribution/watchtower/setup-accounts.cmd", stage / "setup-accounts.cmd")
+        results_root = root / "distribution/watchtower/results"
+        if results_root.exists():
+            for path in validated_results_files(results_root):
+                destination = stage / "results" / path.relative_to(results_root)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, destination)
+        teams_root = root / "distribution/watchtower/teams"
+        if teams_root.exists():
+            for path in validated_teams_files(teams_root):
+                destination = stage / "teams" / path.relative_to(teams_root)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, destination)
+        benchmarks_root = root / "distribution/watchtower/benchmarks"
+        if benchmarks_root.exists():
+            for path in validated_benchmark_files(benchmarks_root):
+                destination = stage / "benchmarks" / path.relative_to(benchmarks_root)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(path, destination)
         files = {
             path.relative_to(stage).as_posix(): sha256(path)
             for path in sorted(stage.rglob("*"))
@@ -144,8 +180,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--verified-stage", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--require-clean-source", action="store_true",
+                        help="reject a dirty checkout when preparing a published release")
     args = parser.parse_args()
-    manifest = package_preview(args.verified_stage, args.output)
+    manifest = package_preview(args.verified_stage, args.output, require_clean_source=args.require_clean_source)
     print(json.dumps({"output": str(args.output), "version": manifest["version"], "source": manifest["source"]}))
 
 

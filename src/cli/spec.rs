@@ -363,6 +363,16 @@ fn agent_command() -> Command {
                 ),
         )
         .subcommand(
+            Command::new("quit-if-idle")
+                .about("Request an identity-bound idle Codex exit")
+                .arg(required("target", "TARGET"))
+                .arg(option("terminal", "ID").required(true))
+                .arg(option("agent-session-id", "UUID").required(true))
+                .arg(option("state-seq", "N").required(true).value_parser(clap::value_parser!(u64)))
+                .arg(flag("check").help("Validate only; never send terminal input"))
+                .after_help("Only the exact idle Codex process and conversation are eligible. Success acknowledges a native Ctrl-D key; verify that the original shell returned before resuming. A draft is never cleared. Old servers reject this method; there is no fallback."),
+        )
+        .subcommand(
             Command::new("rename")
                 .about("Rename an agent")
                 .override_usage("herdr agent rename <TARGET> <NAME>|--clear")

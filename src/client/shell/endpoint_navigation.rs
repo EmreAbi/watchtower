@@ -167,10 +167,10 @@ impl ClientShellState {
             action,
             KeybindAction::PreviousAgent | KeybindAction::NextAgent | KeybindAction::FocusAgent(_)
         ) {
-            let agents = super::aggregate_navigation::online_agent_targets(
+            let agents = super::aggregate_navigation::visible_online_agent_targets(
                 &self.endpoints,
                 &self.active_endpoint_id,
-                self.config.agent_panel_sort,
+                &self.config,
             );
             if agents.is_empty() {
                 return true;

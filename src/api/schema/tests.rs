@@ -63,6 +63,34 @@ fn request_uses_dot_method_names() {
 }
 
 #[test]
+fn agent_quit_if_idle_is_additive_and_requires_identity() {
+    let mut request = serde_json::json!({"id":"guard", "method":"agent.quit-if-idle",
+        "params":{"target":"w1:p1","terminal_id":"terminal-1","session_id":"session-1","state_change_seq":42}});
+    let parsed: Request = serde_json::from_value(request.clone()).unwrap();
+    assert!(matches!(
+        parsed.method,
+        Method::AgentQuitIfIdle(AgentQuitIfIdleParams {
+            check_only: false,
+            ..
+        })
+    ));
+    request["params"]["check_only"] = serde_json::json!(true);
+    let parsed: Request = serde_json::from_value(request.clone()).unwrap();
+    assert!(matches!(
+        parsed.method,
+        Method::AgentQuitIfIdle(AgentQuitIfIdleParams {
+            check_only: true,
+            ..
+        })
+    ));
+    for required in ["terminal_id", "session_id", "state_change_seq"] {
+        let mut missing = request.clone();
+        missing["params"].as_object_mut().unwrap().remove(required);
+        assert!(serde_json::from_value::<Request>(missing).is_err());
+    }
+}
+
+#[test]
 fn workspace_close_group_intent_defaults_false_and_round_trips() {
     let request: Request = serde_json::from_value(serde_json::json!({
         "id": "close",

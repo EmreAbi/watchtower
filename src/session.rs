@@ -675,6 +675,41 @@ mod tests {
     }
 
     #[test]
+    fn agent_quit_if_idle_identity_survives_global_session_parsing() {
+        let _guard = env_lock().lock().unwrap();
+        std::env::remove_var(SESSION_ENV_VAR);
+        clear_explicit_session_for_test();
+        for agent_session in [
+            vec!["--agent-session-id", "01234567-89ab-cdef-0123-456789abcdef"],
+            vec!["--agent-session-id=01234567-89ab-cdef-0123-456789abcdef"],
+        ] {
+            let mut command = vec![
+                "herdr",
+                "agent",
+                "quit-if-idle",
+                "w1:p1",
+                "--terminal",
+                "t1",
+            ];
+            command.extend(agent_session);
+            command.extend(["--state-seq", "42", "--check"]);
+            let command = command.into_iter().map(str::to_owned).collect::<Vec<_>>();
+            let cleaned = configure_from_args(&command).unwrap();
+            assert_eq!(cleaned, command);
+            assert!(std::env::var(SESSION_ENV_VAR).is_err());
+            assert!(!explicit_session_requested());
+
+            let mut routed = vec!["herdr".to_owned(), "--session".into(), "work".into()];
+            routed.extend_from_slice(&command[1..]);
+            assert_eq!(configure_from_args(&routed).unwrap(), command);
+            assert_eq!(std::env::var(SESSION_ENV_VAR).as_deref(), Ok("work"));
+            assert!(explicit_session_requested());
+            std::env::remove_var(SESSION_ENV_VAR);
+            clear_explicit_session_for_test();
+        }
+    }
+
+    #[test]
     fn configure_from_args_accepts_equals_form() {
         let _guard = env_lock().lock().unwrap();
         std::env::remove_var(SESSION_ENV_VAR);

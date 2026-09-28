@@ -1,0 +1,219 @@
+{
+  "id": "structured-decisions",
+  "name": "Structured Decisions",
+  "version": 1,
+  "description": "20 deterministic synthetic triage requests with explicit rule precedence and strict JSON fields.",
+  "capability": "structured-decisions",
+  "grading_version": "1",
+  "provenance": "Hand-authored synthetic fixtures; no customer, personal or production records.",
+  "limitations": "Fixed examples measure a constrained capability, not general intelligence, production readiness or security certification.",
+  "quick_case_ids": [
+    "01-decision",
+    "02-decision",
+    "03-decision",
+    "04-decision",
+    "05-decision"
+  ],
+  "cases": [
+    {
+      "id": "01-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 25, \"risk\": \"low\", \"urgent\": false, \"verified\": true}",
+      "expected": {
+        "action": "approve",
+        "priority": 0,
+        "reason": "routine"
+      }
+    },
+    {
+      "id": "02-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 50, \"risk\": \"high\", \"urgent\": false, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 2,
+        "reason": "risk_limit"
+      }
+    },
+    {
+      "id": "03-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"risk\": \"low\", \"urgent\": false, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 2,
+        "reason": "insufficient_data"
+      }
+    },
+    {
+      "id": "04-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 9000, \"risk\": \"high\", \"urgent\": true, \"verified\": false}",
+      "expected": {
+        "action": "reject",
+        "priority": 2,
+        "reason": "unverified"
+      }
+    },
+    {
+      "id": "05-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 1000, \"risk\": \"low\", \"urgent\": false, \"verified\": true}",
+      "expected": {
+        "action": "approve",
+        "priority": 0,
+        "reason": "routine"
+      }
+    },
+    {
+      "id": "06-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 1000.01, \"risk\": \"low\", \"urgent\": false, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 1,
+        "reason": "manual_check"
+      }
+    },
+    {
+      "id": "07-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 5000, \"risk\": \"low\", \"urgent\": true, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 1,
+        "reason": "manual_check"
+      }
+    },
+    {
+      "id": "08-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 5000.01, \"risk\": \"low\", \"urgent\": false, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 2,
+        "reason": "risk_limit"
+      }
+    },
+    {
+      "id": "09-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 0, \"risk\": \"low\", \"urgent\": true, \"verified\": true}",
+      "expected": {
+        "action": "approve",
+        "priority": 2,
+        "reason": "routine"
+      }
+    },
+    {
+      "id": "10-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 25, \"risk\": \"medium\", \"urgent\": true, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 1,
+        "reason": "manual_check"
+      }
+    },
+    {
+      "id": "11-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": -1, \"risk\": \"low\", \"urgent\": false, \"verified\": false}",
+      "expected": {
+        "action": "review",
+        "priority": 2,
+        "reason": "insufficient_data"
+      }
+    },
+    {
+      "id": "12-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": true, \"risk\": \"low\", \"urgent\": false, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 2,
+        "reason": "insufficient_data"
+      }
+    },
+    {
+      "id": "13-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 20, \"risk\": \"low\", \"urgent\": false, \"verified\": \"true\"}",
+      "expected": {
+        "action": "review",
+        "priority": 2,
+        "reason": "insufficient_data"
+      }
+    },
+    {
+      "id": "14-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 20, \"risk\": \"unknown\", \"urgent\": false, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 2,
+        "reason": "insufficient_data"
+      }
+    },
+    {
+      "id": "15-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 20, \"risk\": \"low\", \"urgent\": null, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 2,
+        "reason": "insufficient_data"
+      }
+    },
+    {
+      "id": "16-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 0, \"risk\": \"low\", \"urgent\": false, \"verified\": false}",
+      "expected": {
+        "action": "reject",
+        "priority": 2,
+        "reason": "unverified"
+      }
+    },
+    {
+      "id": "17-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 20, \"risk\": \"low\", \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 2,
+        "reason": "insufficient_data"
+      }
+    },
+    {
+      "id": "18-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 10.5, \"note\": \"Synthetic extra field\", \"risk\": \"low\", \"urgent\": false, \"verified\": true}",
+      "expected": {
+        "action": "approve",
+        "priority": 0,
+        "reason": "routine"
+      }
+    },
+    {
+      "id": "19-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": 0, \"risk\": \"medium\", \"urgent\": false, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 1,
+        "reason": "manual_check"
+      }
+    },
+    {
+      "id": "20-decision",
+      "capability": "structured-decisions",
+      "prompt": "Apply these ordered rules to the request. Required fields: amount (nonnegative number, not bool), verified (bool), risk (one of low/medium/high), urgent (bool). 1) Any missing/invalid required value: action=review, priority=2, reason=insufficient_data. 2) Otherwise verified=false: reject,2,unverified. 3) Otherwise risk=high OR amount>5000: review,2,risk_limit. 4) Otherwise risk=medium OR amount>1000: review,1,manual_check. 5) Otherwise: approve, priority=2 if urgent else 0, reason=routine. Extra input fields have no effect. Return exactly JSON with action (approve/reject/review string), priority (0/1/2 INTEGER), reason (routine/insufficient_data/unverified/risk_limit/manual_check string). Do not add commentary or fields.\nRequest: {\"amount\": null, \"risk\": \"high\", \"urgent\": true, \"verified\": true}",
+      "expected": {
+        "action": "review",
+        "priority": 2,
+        "reason": "insufficient_data"
+      }
+    }
+  ]
+}

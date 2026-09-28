@@ -1,0 +1,20 @@
+id = "watchtower-accounts"
+name = "Watchtower Accounts"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Provider profiles, quota visibility and explicit agent account selection"
+platforms = ["windows"]
+
+[[panes]]
+id = "center"
+title = "Accounts"
+placement = "popup"
+width = "90%"
+height = "90%"
+command = ["cmd", "/d", "/c", "bin\\center.cmd"]
+
+[[panes]]
+id = "launch-agent"
+title = "Agent"
+placement = "tab"
+command = ["cmd", "/d", "/c", "bin\\center.cmd", "--launch"]

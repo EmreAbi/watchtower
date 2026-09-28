@@ -938,6 +938,68 @@ impl ClientShellState {
         };
         let trimmed = rename.input.trim();
         let method = match rename.target {
+            #[cfg(feature = "watchtower")]
+            ClientRenameTarget::NewSpaceGroup {
+                endpoint_id,
+                workspace,
+            } => {
+                if !self
+                    .endpoints
+                    .iter()
+                    .any(|endpoint| endpoint.endpoint_id == endpoint_id)
+                {
+                    self.space_group_error("This endpoint is no longer available.", outcome);
+                    return;
+                }
+                let family = match workspace.as_ref() {
+                    Some(target) => match self.space_workspace_family(target) {
+                        Some(family) => Some(family),
+                        None => {
+                            self.space_group_error(
+                                "This workspace changed or closed. Reopen its menu.",
+                                outcome,
+                            );
+                            return;
+                        }
+                    },
+                    None => None,
+                };
+                let endpoint = endpoint_id.storage_key();
+                let mut groups = self.config.preferences.space_groups.clone();
+                let result = groups.create(&endpoint, trimmed).and_then(|id| {
+                    if let Some(family) = family {
+                        groups.assign(&endpoint, &family, Some(&id))?;
+                    }
+                    groups.grouped = true;
+                    Ok(())
+                });
+                if result.is_ok() {
+                    self.config.preferences.space_groups = groups;
+                }
+                self.finish_space_group_change(result, outcome);
+                None
+            }
+            #[cfg(feature = "watchtower")]
+            ClientRenameTarget::SpaceGroup {
+                endpoint_id,
+                group_id,
+            } => {
+                if !self
+                    .endpoints
+                    .iter()
+                    .any(|endpoint| endpoint.endpoint_id == endpoint_id)
+                {
+                    self.space_group_error("This endpoint is no longer available.", outcome);
+                    return;
+                }
+                let result = self.config.preferences.space_groups.rename(
+                    &endpoint_id.storage_key(),
+                    &group_id,
+                    trimmed,
+                );
+                self.finish_space_group_change(result, outcome);
+                None
+            }
             ClientRenameTarget::NewWorkspace {
                 source_workspace_id,
                 cwd,

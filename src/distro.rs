@@ -7,7 +7,7 @@ use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub const VERSION: &str = "0.1.0-preview.1";
+pub const VERSION: &str = "0.1.0-preview.2";
 pub const DEFAULT_CONFIG: &str = include_str!("../distribution/watchtower/config.toml");
 const MARKER: &str = "WATCHTOWER_CONTEXT";
 const OVERRIDES: &[&str] = &[

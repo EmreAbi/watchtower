@@ -1094,6 +1094,13 @@ impl AppState {
 
 pub(super) fn url_from_link_target(target: crate::ghostty::LinkTarget) -> Option<String> {
     match target {
+        crate::ghostty::LinkTarget::Uri(uri)
+            if uri
+                .get(..5)
+                .is_some_and(|scheme| scheme.eq_ignore_ascii_case("file:")) =>
+        {
+            local_file_url(&uri).map(str::to_owned)
+        }
         crate::ghostty::LinkTarget::Uri(uri) => Some(uri),
         crate::ghostty::LinkTarget::Text { text, clicked_byte } => {
             url_at_byte(&text, clicked_byte).map(str::to_owned)
@@ -1103,6 +1110,53 @@ pub(super) fn url_from_link_target(target: crate::ghostty::LinkTarget) -> Option
 
 pub(crate) fn safe_web_url(url: &str) -> Option<&str> {
     (url.starts_with("http://") || url.starts_with("https://")).then_some(url)
+}
+
+/// Local file links may be offered to an installed plugin, never the default
+/// URL opener. This is URI validation only; the plugin must validate the file.
+pub(crate) fn local_file_url(url: &str) -> Option<&str> {
+    if url.len() > 8192 || url.chars().any(|ch| ch.is_control() || ch.is_whitespace()) {
+        return None;
+    }
+    let rest = url.strip_prefix("file://")?;
+    let (host, path) = rest.split_once('/')?;
+    if !(host.is_empty() || host.eq_ignore_ascii_case("localhost"))
+        || path.is_empty()
+        || path.contains(['?', '#', '\\'])
+    {
+        return None;
+    }
+    let mut decoded = Vec::with_capacity(path.len());
+    let mut bytes = path.bytes();
+    while let Some(byte) = bytes.next() {
+        let byte = if byte == b'%' {
+            let high = char::from(bytes.next()?).to_digit(16)?;
+            let low = char::from(bytes.next()?).to_digit(16)?;
+            let byte = (high * 16 + low) as u8;
+            // Encoded separators can conceal UNC/device paths from a handler.
+            if matches!(byte, b'/' | b'\\') {
+                return None;
+            }
+            byte
+        } else {
+            byte
+        };
+        decoded.push(byte);
+    }
+    let path = std::str::from_utf8(&decoded).ok()?;
+    if path.starts_with('/') || path.chars().any(char::is_control) {
+        return None;
+    }
+    // A drive path must be absolute; other colons could name Windows streams.
+    let tail = if path.as_bytes().get(1) == Some(&b':') {
+        if !path.as_bytes()[0].is_ascii_alphabetic() || path.as_bytes().get(2) != Some(&b'/') {
+            return None;
+        }
+        &path[2..]
+    } else {
+        path
+    };
+    (!tail.contains(':')).then_some(url)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1159,7 +1213,8 @@ pub(super) fn url_byte_range(text: &str, clicked_byte: usize) -> Option<std::ops
     let span = url_span_at_column(&cells, clicked_idx)?;
     let start = byte_index_for_cell(text, span.start);
     let end = byte_index_after_cell(text, span.end);
-    safe_web_url(text.get(start..end)?)?;
+    let url = text.get(start..end)?;
+    safe_web_url(url).or_else(|| local_file_url(url))?;
     Some(start..end)
 }
 
@@ -1228,6 +1283,7 @@ fn url_span_at_column(cells: &[TextCell], clicked_idx: usize) -> Option<CellSpan
     while start < cells.len() {
         if starts_with_chars(&cells[start..], "http://")
             || starts_with_chars(&cells[start..], "https://")
+            || starts_with_chars(&cells[start..], "file://")
         {
             let mut end = start;
             while end + 1 < cells.len() && !cells[end + 1].ch.is_whitespace() {
@@ -2387,7 +2443,7 @@ mod tests {
             vec![(0, 7, 19), (1, 0, 17)]
         );
         for text in [
-            "file:///tmp/a",
+            "file://server/share/a",
             "javascript:alert(1)",
             "\x1b]8;;https://example.com\x1b\\https://example.com\x1b]8;;\x1b\\",
         ] {
@@ -2504,6 +2560,77 @@ mod tests {
     }
 
     #[test]
+    fn local_file_link_resolution_survives_wrapping_and_offscreen_ends() {
+        let url = "file:///C:/Users/demo/My%20Images/sunset%20(1).png";
+        let mut terminal = crate::ghostty::Terminal::new(20, 2, 1024).unwrap();
+        terminal.write(url.as_bytes());
+        let target = terminal.viewport_link_target(0, 0).unwrap().unwrap();
+        assert_eq!(url_from_link_target(target).as_deref(), Some(url));
+        assert!(!terminal
+            .viewport_link_regions(0, 0, url_byte_range)
+            .unwrap()
+            .is_empty());
+        terminal.scroll_viewport_row(0);
+        let target = terminal.viewport_link_target(5, 1).unwrap().unwrap();
+        assert_eq!(url_from_link_target(target).as_deref(), Some(url));
+        assert_eq!(
+            selected_url(&format!("[sunset]({url})."), "sunset%20"),
+            Some(url)
+        );
+        assert_eq!(
+            selected_url("file:///C:/Users/demo/%E6%97%A5.png", "%E6"),
+            Some("file:///C:/Users/demo/%E6%97%A5.png")
+        );
+    }
+
+    #[test]
+    fn local_file_links_reject_remote_ambiguous_and_malformed_uris() {
+        for url in [
+            "file://server/share/image.png",
+            "FILE://server/share/image.png",
+            "file://user@localhost/C:/image.png",
+            "file://localhost:123/C:/image.png",
+            "file:relative.png",
+            "file://relative.png",
+            "file:////server/share/image.png",
+            "file://localhost//server/share/image.png",
+            "file:///C:relative.png",
+            "file:///C:/image.png:stream",
+            "file:///C:/image.png?download=1",
+            "file:///C:/image.png#fragment",
+            "file:///C:/bad%2fpath.png",
+            "file:///%5c%5cserver/image.png",
+            "file:///C:/bad%00name.png",
+            "file:///C:/bad%0aname.png",
+            "file:///C:/bad%FFname.png",
+            "file:///C:/bad%2.png",
+            "file:///C:/bad%zz.png",
+            "file:///C:/bad name.png",
+            "file:///C:\\image.png",
+        ] {
+            assert_eq!(local_file_url(url), None, "{url}");
+            assert_eq!(
+                url_from_link_target(crate::ghostty::LinkTarget::Uri(url.into())),
+                None,
+                "explicit link: {url}"
+            );
+        }
+        assert!(local_file_url(&format!("file:///C:/{}", "a".repeat(8192))).is_none());
+        for url in [
+            "file:///C:/My%20Images/sunset.png",
+            "file://localhost/C:/sunset.png",
+            "file:///tmp/sunset.png",
+        ] {
+            assert_eq!(local_file_url(url), Some(url));
+            assert_eq!(
+                safe_web_url(url),
+                None,
+                "file links must never use the URL opener"
+            );
+        }
+    }
+
+    #[test]
     fn link_activation_preserves_unicode_and_click_boundaries_after_resize() {
         let mut terminal = crate::ghostty::Terminal::new(80, 5, 1024 * 1024).unwrap();
         terminal.write("[文档](https://example.com/路径?q=a(b)), next".as_bytes());
@@ -2547,7 +2674,10 @@ mod tests {
             selected_url("[docs](https://example.com/docs)", "docs"),
             None
         );
-        assert_eq!(selected_url("open file:///tmp/report", "file"), None);
+        assert_eq!(
+            selected_url("open file:///tmp/report", "file"),
+            Some("file:///tmp/report")
+        );
     }
 
     #[test]

@@ -329,8 +329,10 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # window_title = "{hostname}: {workspace}"
 
 # Agent panel ordering: "spaces" (grouped by space), "priority" (attention queue),
-# or "role" (controllers, workers, reviewers, then agents without a known role).
+# "role" (controllers, workers, reviewers, then agents without a known role),
+# "recent" (latest status changes first), or "name" (display name, A-Z).
 # Role ordering uses the custom team_role pane metadata token.
+# With multiple servers, recent uses changes observed by this client.
 # "workspaces" is accepted as an alias for "spaces".
 # agent_panel_sort = "spaces"
 

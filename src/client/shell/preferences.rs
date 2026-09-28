@@ -24,10 +24,14 @@ pub(super) struct ClientChromePreferences {
     pub(super) sidebar_collapsed: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) agent_panel_sort: Option<crate::config::AgentPanelSortConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) agent_current_workspace_only: Option<bool>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) collapsed_groups: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(super) remote_collapsed_groups: Vec<ClientRemoteCollapsedGroups>,
+    #[serde(default)]
+    pub(super) space_groups: super::space_groups::SpaceGroups,
 }
 
 pub(super) fn path_for_local_endpoint(socket_path: &Path) -> PathBuf {
@@ -87,6 +91,11 @@ mod tests {
         let preferences: ClientChromePreferences =
             serde_json::from_str(r#"{"collapsed_groups":["/repo"]}"#)
                 .expect("legacy client chrome preferences");
+
+        assert_eq!(
+            preferences.space_groups,
+            super::super::space_groups::SpaceGroups::default()
+        );
 
         assert_eq!(preferences.collapsed_groups, ["/repo"]);
         assert!(preferences.remote_collapsed_groups.is_empty());

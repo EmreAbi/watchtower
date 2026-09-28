@@ -218,8 +218,13 @@ impl ClientShellState {
         }
         self.apply_active_snapshot(snapshot, generation);
         if switching_endpoint {
-            // The aggregate agent list belongs to the client, not one endpoint.
-            self.agent_scroll = agent_scroll;
+            // A workspace-scoped list starts at the newly selected workspace;
+            // the aggregate list retains its client-owned scroll position.
+            self.agent_scroll = if self.config.agent_current_workspace_only {
+                0
+            } else {
+                agent_scroll
+            };
         }
         true
     }

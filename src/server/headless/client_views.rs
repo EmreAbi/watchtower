@@ -228,6 +228,7 @@ impl HeadlessServer {
         matches!(
             method,
             Method::CommandInvoke(_)
+                | Method::PluginPaneOpen(_)
                 | Method::PaneClose(_)
                 | Method::PaneEditScrollback(_)
                 | Method::PaneMove(_)
@@ -249,6 +250,7 @@ impl HeadlessServer {
             method,
             Method::AgentFocus(_)
                 | Method::CommandInvoke(_)
+                | Method::PluginPaneOpen(_)
                 | Method::LayoutSetSplitRatio(_)
                 | Method::PaneClose(_)
                 | Method::PaneCopyMotion(_)
@@ -289,6 +291,7 @@ impl HeadlessServer {
             method,
             Method::AgentFocus(_)
                 | Method::CommandInvoke(_)
+                | Method::PluginPaneOpen(_)
                 | Method::LayoutSetSplitRatio(_)
                 | Method::PaneClose(_)
                 | Method::PaneEditScrollback(_)
@@ -961,5 +964,36 @@ impl HeadlessServer {
                     || self.resize_shell_tab_if_controller(client_id, false)
             };
         changed | navigation_changed | geometry_changed
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_pane_open_preserves_custom_popup_geometry_and_reconciliation_policy() {
+        // Plugin panes can also create tabs or splits. They need the same
+        // calling-client geometry and topology reconciliation as commands.
+        for placement in ["popup", "tab", "split"] {
+            let mut params = serde_json::json!({
+                "plugin_id": "watchtower-accounts",
+                "entrypoint": "center",
+                "placement": placement
+            });
+            if placement == "popup" {
+                params["width"] = "90%".into();
+                params["height"] = "90%".into();
+            }
+            let method: api::schema::Method = serde_json::from_value(serde_json::json!({
+                "method": "plugin.pane.open",
+                "params": params
+            }))
+            .expect("valid public plugin pane request");
+
+            assert!(HeadlessServer::shell_locations_may_need_reconcile(&method));
+            assert!(HeadlessServer::shell_endpoint_claims_geometry(&method));
+            assert!(HeadlessServer::public_request_may_change_geometry(&method));
+        }
     }
 }

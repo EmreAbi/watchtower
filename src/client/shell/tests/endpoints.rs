@@ -862,10 +862,10 @@ fn aggregate_agents_use_configured_rows_machine_token_and_status_colors() {
         .join("\n");
     assert!(text.contains("○ Local · local agent"), "frame: {text}");
     assert!(text.contains("× Build · remote agent"), "frame: {text}");
-    assert!(text.contains("grouped"), "frame: {text}");
+    assert!(text.contains("grouped ▾"), "frame: {text}");
     let toggle = state.hits.agent_sort_toggle;
     assert!(!toggle.is_empty());
-    let click = state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+    let open = state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: toggle.x,
         row: toggle.y,
@@ -873,9 +873,40 @@ fn aggregate_agents_use_configured_rows_machine_token_and_status_colors() {
     })]);
     assert_eq!(
         state.config.agent_panel_sort,
+        crate::config::AgentPanelSortConfig::Spaces
+    );
+    assert!(open.actions.is_empty());
+    assert!(open.requests.is_empty());
+    let index = match state.overlay.as_ref() {
+        Some(ClientShellOverlay::ContextMenu(menu)) => menu
+            .items()
+            .iter()
+            .position(|item| {
+                item.action
+                    == ClientContextMenuAction::SetAgentSort(
+                        crate::config::AgentPanelSortConfig::Priority,
+                    )
+            })
+            .expect("priority sort option"),
+        _ => panic!("agent sort dropdown"),
+    };
+    state
+        .compose(100, 28)
+        .expect("aggregate sort dropdown frame");
+    let option = state.hits.context_menu_rows[index].0;
+    let click = state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: option.x,
+        row: option.y,
+        modifiers: KeyModifiers::empty(),
+    })]);
+    assert_eq!(
+        state.config.agent_panel_sort,
         crate::config::AgentPanelSortConfig::Priority
     );
     assert!(click.actions.is_empty());
+    assert!(click.requests.is_empty());
+    assert_eq!(state.active_endpoint_id, ClientEndpointId::Local);
 
     let buffer = frame
         .to_ratatui_buffer()

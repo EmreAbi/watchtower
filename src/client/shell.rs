@@ -28,8 +28,11 @@ mod notifications;
 mod overlay_input;
 mod preferences;
 mod render;
+#[cfg(feature = "watchtower")]
+mod results_button;
 mod scroll;
 mod settings;
+mod space_groups;
 mod state;
 mod surface_patch;
 mod text_editor;

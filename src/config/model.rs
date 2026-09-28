@@ -101,16 +101,8 @@ pub enum AgentPanelSortConfig {
     Spaces,
     Priority,
     Role,
-}
-
-impl AgentPanelSortConfig {
-    pub fn next(self) -> Self {
-        match self {
-            Self::Spaces => Self::Priority,
-            Self::Priority => Self::Role,
-            Self::Role => Self::Spaces,
-        }
-    }
+    Recent,
+    Name,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -1443,27 +1435,25 @@ agent_panel_scope = "current"
     }
 
     #[test]
-    fn role_sort_config_round_trips_and_cycles_back_to_spaces() {
-        let config: Config = toml::from_str("[ui]\nagent_panel_sort = \"role\"\n").unwrap();
-        assert_eq!(config.ui.agent_panel_sort, AgentPanelSortConfig::Role);
-        let json = serde_json::to_string(&config.ui.agent_panel_sort).unwrap();
-        assert_eq!(json, "\"role\"");
-        assert_eq!(
-            serde_json::from_str::<AgentPanelSortConfig>(&json).unwrap(),
-            AgentPanelSortConfig::Role
-        );
-        assert_eq!(
-            AgentPanelSortConfig::Spaces.next(),
-            AgentPanelSortConfig::Priority
-        );
-        assert_eq!(
-            AgentPanelSortConfig::Priority.next(),
-            AgentPanelSortConfig::Role
-        );
-        assert_eq!(
-            AgentPanelSortConfig::Role.next(),
-            AgentPanelSortConfig::Spaces
-        );
+    fn agent_panel_sort_modes_round_trip() {
+        let modes = [
+            ("spaces", AgentPanelSortConfig::Spaces),
+            ("priority", AgentPanelSortConfig::Priority),
+            ("role", AgentPanelSortConfig::Role),
+            ("recent", AgentPanelSortConfig::Recent),
+            ("name", AgentPanelSortConfig::Name),
+        ];
+        for (name, mode) in modes {
+            let config: Config =
+                toml::from_str(&format!("[ui]\nagent_panel_sort = \"{name}\"\n")).unwrap();
+            assert_eq!(config.ui.agent_panel_sort, mode);
+            let json = serde_json::to_string(&mode).unwrap();
+            assert_eq!(json, format!("\"{name}\""));
+            assert_eq!(
+                serde_json::from_str::<AgentPanelSortConfig>(&json).unwrap(),
+                mode
+            );
+        }
     }
 
     #[test]

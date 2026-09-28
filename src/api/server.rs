@@ -423,6 +423,7 @@ pub(crate) fn api_method_name(method: &Method) -> &'static str {
         Method::AgentRead(_) => "agent.read",
         Method::AgentExplain(_) => "agent.explain",
         Method::AgentSendKeys(_) => "agent.send_keys",
+        Method::AgentQuitIfIdle(_) => "agent.quit-if-idle",
         Method::AgentRename(_) => "agent.rename",
         Method::AgentViewSet(_) => "agent.view.set",
         Method::AgentViewClear(_) => "agent.view.clear",

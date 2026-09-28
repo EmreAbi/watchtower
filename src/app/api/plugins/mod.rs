@@ -878,6 +878,40 @@ mod tests {
         assert_eq!(response["error"]["code"], "stale_target");
     }
 
+    #[tokio::test]
+    async fn pane_link_activate_local_file_without_handler_has_no_side_effects() {
+        let mut app = test_app();
+        app.state.workspaces = vec![crate::workspace::Workspace::test_new("file-link")];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        let pane_id = app.state.workspaces[0].tabs[0].root_pane;
+        let terminal_id = app.state.workspaces[0].tabs[0].panes[&pane_id]
+            .attached_terminal_id
+            .clone();
+        let (runtime, mut rx) = crate::terminal::TerminalRuntime::test_with_channel(80, 4);
+        runtime.test_process_pty_bytes(b"file:///C:/My%20Images/sunset.png");
+        let revision = runtime.content_seq();
+        app.terminal_runtimes.insert(terminal_id, runtime);
+        let params = PaneLinkActivateParams {
+            pane_id: app.public_pane_id(0, pane_id).unwrap(),
+            viewport_row: 0,
+            col: 1,
+            content_revision: Some(revision),
+            offset_from_bottom: Some(0),
+        };
+        let response = app.handle_pane_link_activate("file-link".into(), params);
+        assert!(matches!(
+            response_result(&response),
+            ResponseResult::PaneLinkActivated { url: Some(url), handled: false }
+                if url == "file:///C:/My%20Images/sunset.png"
+        ));
+        assert!(
+            rx.try_recv().is_err(),
+            "a file link must not write to the PTY"
+        );
+        assert!(app.state.plugin_command_logs.is_empty());
+    }
+
     fn test_app() -> App {
         let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
         App::new(
@@ -3164,6 +3198,47 @@ action = "open"
             Some("github-issue|https://github.com/herdrdev/herdr/issues/398")
         );
 
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn local_file_link_handler_requires_an_enabled_registered_plugin() {
+        let mut app = test_app();
+        let url = "file:///C:/Images/sunset.png";
+        assert!(app.find_plugin_link_handler(url).is_none());
+        let root = unique_temp_path("local-file-link-handler");
+        write_manifest_content(
+            &root,
+            r#"
+id = "example.file-preview"
+name = "File Preview"
+version = "0.1.0"
+min_herdr_version = "0.9.1"
+platforms = ["linux", "macos", "windows"]
+
+[[actions]]
+id = "open"
+title = "Preview file"
+command = ["not-executed-by-link-resolution"]
+
+[[link_handlers]]
+id = "local-file"
+title = "Preview local file"
+pattern = "^file://"
+action = "open"
+"#,
+        );
+        link_manifest(&mut app, &root);
+        let (plugin, handler) = app.find_plugin_link_handler(url).unwrap();
+        assert_eq!(plugin.plugin_id, "example.file-preview");
+        assert_eq!(handler.action, "open");
+        app.state
+            .installed_plugins
+            .get_mut(&plugin.plugin_id)
+            .unwrap()
+            .enabled = false;
+        assert!(app.find_plugin_link_handler(url).is_none());
+        assert!(app.state.plugin_command_logs.is_empty());
         let _ = std::fs::remove_dir_all(root);
     }
 

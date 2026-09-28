@@ -1,0 +1,1036 @@
+{
+  "id": "coding",
+  "name": "Python Completion",
+  "version": 1,
+  "description": "20 small pure Python functions with boundary cases and a bounded AST grader.",
+  "capability": "coding",
+  "grading_version": "1",
+  "provenance": "Hand-authored synthetic fixtures; no customer, personal or production records.",
+  "limitations": "Fixed examples measure a constrained capability, not general intelligence, production readiness or security certification.",
+  "quick_case_ids": [
+    "01-clamp",
+    "02-leap-year",
+    "03-mean",
+    "04-rotate-left",
+    "05-second-largest"
+  ],
+  "cases": [
+    {
+      "id": "01-clamp",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn value clamped inclusively to low..high. Inputs are integers and low <= high.\nSignature: def solve(value, low, high)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              -1,
+              0,
+              5
+            ],
+            "result": 0
+          },
+          {
+            "args": [
+              3,
+              0,
+              5
+            ],
+            "result": 3
+          },
+          {
+            "args": [
+              9,
+              0,
+              5
+            ],
+            "result": 5
+          },
+          {
+            "args": [
+              5,
+              5,
+              5
+            ],
+            "result": 5
+          },
+          {
+            "args": [
+              -8,
+              -5,
+              -2
+            ],
+            "result": -5
+          }
+        ],
+        "reference_code": "def solve(value, low, high):\n    return min(max(value, low), high)\n"
+      }
+    },
+    {
+      "id": "02-leap-year",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn a bool: leap years are divisible by 4, except century years must be divisible by 400. Positive integer year.\nSignature: def solve(year)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              2000
+            ],
+            "result": true
+          },
+          {
+            "args": [
+              1900
+            ],
+            "result": false
+          },
+          {
+            "args": [
+              2024
+            ],
+            "result": true
+          },
+          {
+            "args": [
+              2023
+            ],
+            "result": false
+          },
+          {
+            "args": [
+              2100
+            ],
+            "result": false
+          }
+        ],
+        "reference_code": "def solve(year):\n    return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)\n"
+      }
+    },
+    {
+      "id": "03-mean",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn arithmetic mean of a list of numbers. Return 0.0 for the empty list.\nSignature: def solve(values)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              []
+            ],
+            "result": 0.0
+          },
+          {
+            "args": [
+              [
+                2,
+                4
+              ]
+            ],
+            "result": 3.0
+          },
+          {
+            "args": [
+              [
+                -3,
+                0,
+                3
+              ]
+            ],
+            "result": 0.0
+          },
+          {
+            "args": [
+              [
+                5
+              ]
+            ],
+            "result": 5.0
+          },
+          {
+            "args": [
+              [
+                1,
+                2,
+                2
+              ]
+            ],
+            "result": 1.6666666666666667
+          }
+        ],
+        "reference_code": "def solve(values):\n    return sum(values) / len(values) if values else 0.0\n"
+      }
+    },
+    {
+      "id": "04-rotate-left",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn a new list rotated left by count positions, modulo length. Negative count rotates right. Empty input returns an empty list.\nSignature: def solve(values, count)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              [
+                1,
+                2,
+                3
+              ],
+              1
+            ],
+            "result": [
+              2,
+              3,
+              1
+            ]
+          },
+          {
+            "args": [
+              [
+                1,
+                2,
+                3
+              ],
+              -1
+            ],
+            "result": [
+              3,
+              1,
+              2
+            ]
+          },
+          {
+            "args": [
+              [
+                1,
+                2,
+                3
+              ],
+              4
+            ],
+            "result": [
+              2,
+              3,
+              1
+            ]
+          },
+          {
+            "args": [
+              [],
+              5
+            ],
+            "result": []
+          },
+          {
+            "args": [
+              [
+                1,
+                2
+              ],
+              0
+            ],
+            "result": [
+              1,
+              2
+            ]
+          }
+        ],
+        "reference_code": "def solve(values, count):\n    if not values:\n        return []\n    n = count % len(values)\n    return values[n:] + values[:n]\n"
+      }
+    },
+    {
+      "id": "05-second-largest",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn the second-largest DISTINCT integer, or None if fewer than two distinct values exist. Do not change input.\nSignature: def solve(values)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              [
+                3,
+                3,
+                2
+              ]
+            ],
+            "result": 2
+          },
+          {
+            "args": [
+              [
+                5
+              ]
+            ],
+            "result": null
+          },
+          {
+            "args": [
+              []
+            ],
+            "result": null
+          },
+          {
+            "args": [
+              [
+                -5,
+                -1,
+                -3
+              ]
+            ],
+            "result": -3
+          },
+          {
+            "args": [
+              [
+                9,
+                4,
+                9,
+                7
+              ]
+            ],
+            "result": 7
+          }
+        ],
+        "reference_code": "def solve(values):\n    items = sorted(set(values))\n    return items[-2] if len(items) >= 2 else None\n"
+      }
+    },
+    {
+      "id": "06-shipping",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn shipping fee 0 if member is True or total is at least 50, otherwise 5. Nonnegative numeric total, boolean member.\nSignature: def solve(total, member)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              50,
+              false
+            ],
+            "result": 0
+          },
+          {
+            "args": [
+              49.99,
+              false
+            ],
+            "result": 5
+          },
+          {
+            "args": [
+              0,
+              true
+            ],
+            "result": 0
+          },
+          {
+            "args": [
+              100,
+              false
+            ],
+            "result": 0
+          },
+          {
+            "args": [
+              0,
+              false
+            ],
+            "result": 5
+          }
+        ],
+        "reference_code": "def solve(total, member):\n    return 0 if member or total >= 50 else 5\n"
+      }
+    },
+    {
+      "id": "07-overlap",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn length of overlap of half-open numeric intervals [a_start,a_end) and [b_start,b_end). Each start <= its end. Disjoint/touching intervals have zero overlap.\nSignature: def solve(a_start, a_end, b_start, b_end)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              0,
+              5,
+              3,
+              8
+            ],
+            "result": 2
+          },
+          {
+            "args": [
+              0,
+              2,
+              2,
+              4
+            ],
+            "result": 0
+          },
+          {
+            "args": [
+              0,
+              1,
+              5,
+              8
+            ],
+            "result": 0
+          },
+          {
+            "args": [
+              -5,
+              5,
+              -2,
+              2
+            ],
+            "result": 4
+          },
+          {
+            "args": [
+              3,
+              3,
+              0,
+              8
+            ],
+            "result": 0
+          }
+        ],
+        "reference_code": "def solve(a_start, a_end, b_start, b_end):\n    return max(0, min(a_end, b_end) - max(a_start, b_start))\n"
+      }
+    },
+    {
+      "id": "08-palindrome",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn a bool indicating whether text is a palindrome after lowercasing and removing ASCII spaces only. Empty normalized text is a palindrome.\nSignature: def solve(text)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              "Never odd or even"
+            ],
+            "result": true
+          },
+          {
+            "args": [
+              "Abba"
+            ],
+            "result": true
+          },
+          {
+            "args": [
+              "hello"
+            ],
+            "result": false
+          },
+          {
+            "args": [
+              ""
+            ],
+            "result": true
+          },
+          {
+            "args": [
+              "a b c"
+            ],
+            "result": false
+          }
+        ],
+        "reference_code": "def solve(text):\n    clean = text.lower().replace(\" \", \"\")\n    return clean == clean[::-1]\n"
+      }
+    },
+    {
+      "id": "09-initials",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn uppercase first character of first plus uppercase first character of last. Both inputs are nonempty ASCII names.\nSignature: def solve(first, last)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              "ada",
+              "lovelace"
+            ],
+            "result": "AL"
+          },
+          {
+            "args": [
+              "Grace",
+              "Hopper"
+            ],
+            "result": "GH"
+          },
+          {
+            "args": [
+              "x",
+              "y"
+            ],
+            "result": "XY"
+          },
+          {
+            "args": [
+              "Linus",
+              "torvalds"
+            ],
+            "result": "LT"
+          },
+          {
+            "args": [
+              "a",
+              "B"
+            ],
+            "result": "AB"
+          }
+        ],
+        "reference_code": "def solve(first, last):\n    return first[0].upper() + last[0].upper()\n"
+      }
+    },
+    {
+      "id": "10-extension",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn text after the LAST dot, lowercased. No dot returns empty string. A leading dot counts as a separator; a trailing dot yields empty string.\nSignature: def solve(filename)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              "archive.TAR.GZ"
+            ],
+            "result": "gz"
+          },
+          {
+            "args": [
+              "README"
+            ],
+            "result": ""
+          },
+          {
+            "args": [
+              ".ENV"
+            ],
+            "result": "env"
+          },
+          {
+            "args": [
+              "file."
+            ],
+            "result": ""
+          },
+          {
+            "args": [
+              "a.PDF"
+            ],
+            "result": "pdf"
+          }
+        ],
+        "reference_code": "def solve(filename):\n    return filename.rsplit(\".\", 1)[-1].lower() if \".\" in filename else \"\"\n"
+      }
+    },
+    {
+      "id": "11-safe-divide",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn numerator/denominator, or None if denominator is zero. Numeric inputs.\nSignature: def solve(numerator, denominator)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              6,
+              3
+            ],
+            "result": 2.0
+          },
+          {
+            "args": [
+              0,
+              3
+            ],
+            "result": 0.0
+          },
+          {
+            "args": [
+              3,
+              0
+            ],
+            "result": null
+          },
+          {
+            "args": [
+              -8,
+              2
+            ],
+            "result": -4.0
+          },
+          {
+            "args": [
+              1,
+              4
+            ],
+            "result": 0.25
+          }
+        ],
+        "reference_code": "def solve(numerator, denominator):\n    return None if denominator == 0 else numerator / denominator\n"
+      }
+    },
+    {
+      "id": "12-discount",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn the price remaining after percent percent discount, without rounding. Nonnegative price; percent between 0 and 100.\nSignature: def solve(price, percent)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              100,
+              20
+            ],
+            "result": 80.0
+          },
+          {
+            "args": [
+              50,
+              0
+            ],
+            "result": 50.0
+          },
+          {
+            "args": [
+              50,
+              100
+            ],
+            "result": 0.0
+          },
+          {
+            "args": [
+              12,
+              25
+            ],
+            "result": 9.0
+          },
+          {
+            "args": [
+              9.99,
+              10
+            ],
+            "result": 8.991
+          }
+        ],
+        "reference_code": "def solve(price, percent):\n    return price * (100 - percent) / 100\n"
+      }
+    },
+    {
+      "id": "13-median-three",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn the median of exactly three integers; duplicates are retained.\nSignature: def solve(a, b, c)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              1,
+              3,
+              2
+            ],
+            "result": 2
+          },
+          {
+            "args": [
+              5,
+              5,
+              1
+            ],
+            "result": 5
+          },
+          {
+            "args": [
+              -4,
+              -1,
+              -2
+            ],
+            "result": -2
+          },
+          {
+            "args": [
+              7,
+              7,
+              7
+            ],
+            "result": 7
+          },
+          {
+            "args": [
+              0,
+              9,
+              -9
+            ],
+            "result": 0
+          }
+        ],
+        "reference_code": "def solve(a, b, c):\n    return sorted([a, b, c])[1]\n"
+      }
+    },
+    {
+      "id": "14-bounded-sum",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn sum of nonnegative integer values capped at nonnegative integer limit.\nSignature: def solve(values, limit)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              [
+                1,
+                2
+              ],
+              9
+            ],
+            "result": 3
+          },
+          {
+            "args": [
+              [
+                5,
+                6
+              ],
+              10
+            ],
+            "result": 10
+          },
+          {
+            "args": [
+              [],
+              5
+            ],
+            "result": 0
+          },
+          {
+            "args": [
+              [
+                3
+              ],
+              0
+            ],
+            "result": 0
+          },
+          {
+            "args": [
+              [
+                2,
+                3
+              ],
+              5
+            ],
+            "result": 5
+          }
+        ],
+        "reference_code": "def solve(values, limit):\n    return min(sum(values), limit)\n"
+      }
+    },
+    {
+      "id": "15-manhattan",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn Manhattan distance between two integer coordinates: sum of absolute coordinate differences.\nSignature: def solve(ax, ay, bx, by)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              0,
+              0,
+              3,
+              4
+            ],
+            "result": 7
+          },
+          {
+            "args": [
+              3,
+              4,
+              0,
+              0
+            ],
+            "result": 7
+          },
+          {
+            "args": [
+              -1,
+              -2,
+              2,
+              2
+            ],
+            "result": 7
+          },
+          {
+            "args": [
+              5,
+              5,
+              5,
+              5
+            ],
+            "result": 0
+          },
+          {
+            "args": [
+              0,
+              5,
+              2,
+              1
+            ],
+            "result": 6
+          }
+        ],
+        "reference_code": "def solve(ax, ay, bx, by):\n    return abs(ax - bx) + abs(ay - by)\n"
+      }
+    },
+    {
+      "id": "16-swap-pair",
+      "capability": "coding",
+      "prompt": "Complete the function.\nInput is a list of exactly two integers. Return a new list containing them in reversed order.\nSignature: def solve(pair)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              [
+                1,
+                2
+              ]
+            ],
+            "result": [
+              2,
+              1
+            ]
+          },
+          {
+            "args": [
+              [
+                -1,
+                3
+              ]
+            ],
+            "result": [
+              3,
+              -1
+            ]
+          },
+          {
+            "args": [
+              [
+                0,
+                0
+              ]
+            ],
+            "result": [
+              0,
+              0
+            ]
+          },
+          {
+            "args": [
+              [
+                9,
+                1
+              ]
+            ],
+            "result": [
+              1,
+              9
+            ]
+          },
+          {
+            "args": [
+              [
+                4,
+                -4
+              ]
+            ],
+            "result": [
+              -4,
+              4
+            ]
+          }
+        ],
+        "reference_code": "def solve(pair):\n    return [pair[1], pair[0]]\n"
+      }
+    },
+    {
+      "id": "17-deadline",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn \"late\" if current > due, \"due\" if equal, otherwise \"early\". Integer day numbers.\nSignature: def solve(current, due)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              3,
+              2
+            ],
+            "result": "late"
+          },
+          {
+            "args": [
+              2,
+              2
+            ],
+            "result": "due"
+          },
+          {
+            "args": [
+              1,
+              2
+            ],
+            "result": "early"
+          },
+          {
+            "args": [
+              -1,
+              0
+            ],
+            "result": "early"
+          },
+          {
+            "args": [
+              0,
+              0
+            ],
+            "result": "due"
+          }
+        ],
+        "reference_code": "def solve(current, due):\n    return \"late\" if current > due else \"due\" if current == due else \"early\"\n"
+      }
+    },
+    {
+      "id": "18-word-count",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn count of whitespace-separated tokens. Consecutive spaces, tabs and newlines are separators, not empty tokens.\nSignature: def solve(text)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              "a b"
+            ],
+            "result": 2
+          },
+          {
+            "args": [
+              "  a   b  "
+            ],
+            "result": 2
+          },
+          {
+            "args": [
+              "a\tb\nc"
+            ],
+            "result": 3
+          },
+          {
+            "args": [
+              ""
+            ],
+            "result": 0
+          },
+          {
+            "args": [
+              " \t\n"
+            ],
+            "result": 0
+          }
+        ],
+        "reference_code": "def solve(text):\n    return len(text.split())\n"
+      }
+    },
+    {
+      "id": "19-duplicates",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn a bool indicating whether a list of integers contains any duplicate value.\nSignature: def solve(values)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              [
+                1,
+                1
+              ]
+            ],
+            "result": true
+          },
+          {
+            "args": [
+              [
+                1,
+                2,
+                3
+              ]
+            ],
+            "result": false
+          },
+          {
+            "args": [
+              []
+            ],
+            "result": false
+          },
+          {
+            "args": [
+              [
+                5
+              ]
+            ],
+            "result": false
+          },
+          {
+            "args": [
+              [
+                -1,
+                0,
+                -1
+              ]
+            ],
+            "result": true
+          }
+        ],
+        "reference_code": "def solve(values):\n    return len(set(values)) != len(values)\n"
+      }
+    },
+    {
+      "id": "20-phone-clean",
+      "capability": "coding",
+      "prompt": "Complete the function.\nReturn text with ASCII spaces, hyphens, opening parentheses and closing parentheses removed. Preserve all other characters, including plus signs.\nSignature: def solve(text)\nReturn exactly JSON {\"code\":\"<Python source>\"}. Implement exactly one pure function named solve with the stated parameters. Allowed: local assignments, if/return, literals, arithmetic/comparisons, boolean and conditional expressions, indexing/slicing; builtins len, abs, min, max, sum, sorted, set, round, int, str, bool; string methods lower, upper, strip, lstrip, rstrip, split, rsplit, replace, startswith, endswith, count, join. No imports, loops, comprehensions, recursive/helper functions, I/O or attribute traversal. Do not include Markdown fences.",
+      "expected": {
+        "function": "solve",
+        "tests": [
+          {
+            "args": [
+              "(123) 456-7890"
+            ],
+            "result": "1234567890"
+          },
+          {
+            "args": [
+              "+44 (20) 1234"
+            ],
+            "result": "+44201234"
+          },
+          {
+            "args": [
+              "123"
+            ],
+            "result": "123"
+          },
+          {
+            "args": [
+              " ()- "
+            ],
+            "result": ""
+          },
+          {
+            "args": [
+              "+1-2-3"
+            ],
+            "result": "+123"
+          }
+        ],
+        "reference_code": "def solve(text):\n    return text.replace(\" \", \"\").replace(\"-\", \"\").replace(\"(\", \"\").replace(\")\", \"\")\n"
+      }
+    }
+  ]
+}

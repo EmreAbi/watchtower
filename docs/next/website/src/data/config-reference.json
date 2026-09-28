@@ -1032,11 +1032,13 @@
           "key": "ui.agent_panel_sort",
           "type": "enum",
           "default": "\"spaces\"",
-          "description": "Agent sidebar ordering: \"spaces\", \"priority\", or \"role\". Role ordering uses the team_role pane token: controllers, workers, reviewers, then unassigned agents. \"workspaces\" is accepted as an alias for \"spaces\".",
+          "description": "Agent sidebar ordering: \"spaces\", \"priority\", \"role\", \"recent\", or \"name\". Role ordering uses the team_role pane token: controllers, workers, reviewers, then unassigned agents. Recent puts the latest status changes first, using client-observed recency across servers. Name sorts display names alphabetically, ignoring case. \"workspaces\" is accepted as an alias for \"spaces\".",
           "values": [
             "spaces",
             "priority",
-            "role"
+            "role",
+            "recent",
+            "name"
           ]
         },
         {

@@ -133,7 +133,14 @@ pub(super) fn aggregate_agent_rows<'a>(
 
     let mut rows = cached_endpoint_snapshots(endpoints)
         .flat_map(|endpoint| {
-            super::agent_sidebar::ordered_agent_pane_ids(endpoint.snapshot, sort)
+            // Server sequence numbers are local to each endpoint. Keep their
+            // input order intact before applying client-observed recency below.
+            let endpoint_sort = if sort == crate::config::AgentPanelSortConfig::Recent {
+                crate::config::AgentPanelSortConfig::Spaces
+            } else {
+                sort
+            };
+            super::agent_sidebar::ordered_agent_pane_ids(endpoint.snapshot, endpoint_sort)
                 .into_iter()
                 .filter_map(move |pane_id| {
                     let agent = endpoint
@@ -171,7 +178,33 @@ fn sort_aggregate_rows(
         });
     } else if sort == crate::config::AgentPanelSortConfig::Role {
         rows.sort_by_key(|row| super::agent_sidebar::agent_role_rank(&row.agent.tokens));
+    } else if sort == crate::config::AgentPanelSortConfig::Recent {
+        rows.sort_by_key(|row| std::cmp::Reverse(row.recency));
+    } else if sort == crate::config::AgentPanelSortConfig::Name {
+        rows.sort_by_cached_key(|row| super::agent_sidebar::agent_sort_name(row.agent));
     }
+}
+
+/// Workspace identifiers are endpoint-local. A workspace scope must never
+/// match an identically named workspace on another machine.
+pub(super) fn visible_aggregate_agent_rows<'a>(
+    endpoints: &'a [ClientShellEndpoint],
+    active_endpoint_id: &ClientEndpointId,
+    config: &ClientShellConfig,
+) -> Vec<AggregateAgentRow<'a>> {
+    let mut rows = aggregate_agent_rows(endpoints, active_endpoint_id, config.agent_panel_sort);
+    if config.agent_current_workspace_only {
+        let workspace_id = endpoints
+            .iter()
+            .find(|endpoint| &endpoint.endpoint_id == active_endpoint_id)
+            .and_then(|endpoint| endpoint.snapshot.as_deref())
+            .and_then(|snapshot| snapshot.focused_workspace_id.as_deref());
+        rows.retain(|row| {
+            row.endpoint.endpoint_id == active_endpoint_id
+                && Some(row.agent.workspace_id.as_str()) == workspace_id
+        });
+    }
+    rows
 }
 
 struct ClientAgentViewEntry<'a> {
@@ -269,6 +302,24 @@ pub(super) fn online_agent_targets(
     sort: crate::config::AgentPanelSortConfig,
 ) -> Vec<AggregateAgentTarget> {
     aggregate_agent_rows(endpoints, active_endpoint_id, sort)
+        .into_iter()
+        .filter(|row| !row.endpoint.stale())
+        .map(|row| AggregateAgentTarget {
+            endpoint_id: row.endpoint.endpoint_id.clone(),
+            pane_id: row.agent.pane_id.clone(),
+        })
+        .collect()
+}
+
+pub(super) fn visible_online_agent_targets(
+    endpoints: &[ClientShellEndpoint],
+    active_endpoint_id: &ClientEndpointId,
+    config: &ClientShellConfig,
+) -> Vec<AggregateAgentTarget> {
+    if !config.agent_current_workspace_only {
+        return online_agent_targets(endpoints, active_endpoint_id, config.agent_panel_sort);
+    }
+    visible_aggregate_agent_rows(endpoints, active_endpoint_id, config)
         .into_iter()
         .filter(|row| !row.endpoint.stale())
         .map(|row| AggregateAgentTarget {
@@ -642,17 +693,123 @@ mod tests {
     }
 
     #[test]
-    fn aggregate_role_sort_retains_an_explicit_custom_view_sort() {
+    fn aggregate_recent_uses_client_recency_and_keeps_endpoint_ties_stable() {
+        for projection_supported in [true, false] {
+            let (mut state, remote_id) = role_endpoints(
+                vec![
+                    role_agent("pane_1", "ws_1", "WORKER", 1),
+                    role_agent("pane_2", "ws_1", "WORKER", 9000),
+                ],
+                vec![
+                    role_agent("pane_1", "ws_1", "WORKER", 2),
+                    role_agent("pane_2", "ws_1", "WORKER", 999999),
+                ],
+            );
+            for endpoint in &mut state.endpoints {
+                endpoint.agent_view_projection_supported = projection_supported;
+                endpoint.agent_recency = HashMap::from([
+                    (
+                        "pane_1".into(),
+                        if endpoint.endpoint_id == remote_id {
+                            20
+                        } else {
+                            10
+                        },
+                    ),
+                    ("pane_2".into(), 10),
+                ]);
+            }
+            let rows = aggregate_agent_rows(
+                &state.endpoints,
+                &ClientEndpointId::Local,
+                AgentPanelSortConfig::Recent,
+            );
+            let identities = rows
+                .iter()
+                .map(|row| (row.endpoint.endpoint_id.clone(), row.agent.pane_id.as_str()))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                identities,
+                [
+                    (remote_id.clone(), "pane_1"),
+                    (ClientEndpointId::Local, "pane_1"),
+                    (ClientEndpointId::Local, "pane_2"),
+                    (remote_id, "pane_2"),
+                ],
+                "projection_supported: {projection_supported}"
+            );
+        }
+    }
+
+    #[test]
+    fn aggregate_name_uses_display_label_priority_and_preserves_case_insensitive_ties() {
+        let mut display = role_agent("display", "ws_1", "ZZZ", 9000);
+        display.display_agent = Some("Beta".into());
+        let named = role_agent("named", "ws_1", "ALPHA", 1);
+        let mut title = role_agent("title", "ws_1", "WORKER", 500);
+        title.name = None;
+        title.agent = None;
+        title.title = Some("charlie".into());
+        let mut remote_display = role_agent("remote-display", "ws_1", "REVIEW", 90000);
+        remote_display.display_agent = Some("alpha".into());
+        let mut provider = role_agent("provider", "ws_1", "WORKER", 100000);
+        provider.name = None;
+        provider.agent = Some("delta".into());
+        provider.title = Some("aaa".into());
+        let (mut state, remote_id) =
+            role_endpoints(vec![display, named, title], vec![remote_display, provider]);
+        for projection_supported in [true, false] {
+            for endpoint in &mut state.endpoints {
+                endpoint.agent_view_projection_supported = projection_supported;
+            }
+            let rows = aggregate_agent_rows(
+                &state.endpoints,
+                &ClientEndpointId::Local,
+                AgentPanelSortConfig::Name,
+            );
+            let identities = rows
+                .iter()
+                .map(|row| (row.endpoint.endpoint_id.clone(), row.agent.pane_id.as_str()))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                identities,
+                [
+                    (ClientEndpointId::Local, "named"),
+                    (remote_id.clone(), "remote-display"),
+                    (ClientEndpointId::Local, "display"),
+                    (ClientEndpointId::Local, "title"),
+                    (remote_id.clone(), "provider"),
+                ],
+                "projection_supported: {projection_supported}"
+            );
+        }
+    }
+
+    #[test]
+    fn aggregate_client_sorts_retain_an_explicit_custom_view_sort() {
         let (mut state, remote_id) = role_endpoints(
             vec![role_agent("pane_1", "ws_1", "CONTROL", 1)],
             vec![role_agent("pane_1", "ws_1", "REVIEW", 99)],
         );
-        let role_rows = aggregate_agent_rows(
-            &state.endpoints,
-            &ClientEndpointId::Local,
+        for endpoint in &mut state.endpoints {
+            endpoint.agent_recency.insert(
+                "pane_1".into(),
+                if endpoint.endpoint_id == ClientEndpointId::Local {
+                    100
+                } else {
+                    1
+                },
+            );
+        }
+        let sorts = [
             AgentPanelSortConfig::Role,
-        );
-        assert_eq!(role_rows[0].endpoint.endpoint_id, &ClientEndpointId::Local);
+            AgentPanelSortConfig::Recent,
+            AgentPanelSortConfig::Name,
+        ];
+        for sort in sorts {
+            let rows = aggregate_agent_rows(&state.endpoints, &ClientEndpointId::Local, sort);
+            assert_eq!(rows[0].endpoint.endpoint_id, &ClientEndpointId::Local);
+        }
         state.set_test_endpoint_agent_view(
             &ClientEndpointId::Local,
             Some(AgentViewSetParams {
@@ -665,20 +822,19 @@ mod tests {
                 }],
             }),
         );
-        let targets = online_agent_targets(
-            &state.endpoints,
-            &ClientEndpointId::Local,
-            AgentPanelSortConfig::Role,
-        )
-        .into_iter()
-        .map(|target| (target.endpoint_id, target.pane_id))
-        .collect::<Vec<_>>();
-        assert_eq!(
-            targets,
-            [
-                (remote_id, "pane_1".to_owned()),
-                (ClientEndpointId::Local, "pane_1".to_owned()),
-            ]
-        );
+        for sort in sorts {
+            let targets = online_agent_targets(&state.endpoints, &ClientEndpointId::Local, sort)
+                .into_iter()
+                .map(|target| (target.endpoint_id, target.pane_id))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                targets,
+                [
+                    (remote_id.clone(), "pane_1".to_owned()),
+                    (ClientEndpointId::Local, "pane_1".to_owned()),
+                ],
+                "sort: {sort:?}"
+            );
+        }
     }
 }

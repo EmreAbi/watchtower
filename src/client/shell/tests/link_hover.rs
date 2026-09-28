@@ -323,6 +323,35 @@ fn ctrl_hover_explicit_wide_label_includes_the_spacer_cell() {
 }
 
 #[test]
+fn ctrl_hover_explicit_local_file_link_highlights_without_activating_a_plugin() {
+    for (url, allowed) in [
+        ("file:///C:/My%20Images/sunset.png", true),
+        ("file://localhost/C:/Images/sunset.png", true),
+        ("file://server/share/sunset.png", false),
+        ("javascript:alert(1)", false),
+    ] {
+        let mut state = hover_state();
+        state.set_endpoint_methods(Some(vec![]));
+        let mut next = surface();
+        next.surface_revision += 1;
+        next.frame.hyperlinks.push(url.into());
+        next.frame.cells[1].hyperlink = Some(0);
+        state.set_pane_surface(next);
+        let mouse = hover_mouse(&state, 1, 0);
+        let outcome = state.handle_raw_events(vec![RawInputEvent::Mouse(mouse)]);
+        assert!(
+            outcome.actions.is_empty(),
+            "hover must have no side effects"
+        );
+        assert_eq!(
+            !state.link_hover.as_ref().unwrap().regions.is_empty(),
+            allowed,
+            "{url}"
+        );
+    }
+}
+
+#[test]
 #[ignore = "non-gating fixed-geometry hover composition profile"]
 fn ctrl_hover_render_scale_profile() {
     for count in [1, 15] {

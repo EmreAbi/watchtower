@@ -1,6 +1,6 @@
 {
   "name": "Watchtower",
-  "version": "0.1.0-preview.1",
+  "version": "0.1.0-preview.2",
   "repository": "https://github.com/EmreAbi/watchtower",
   "upstream": {
     "repository": "https://github.com/herdrdev/herdr",

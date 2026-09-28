@@ -1173,6 +1173,11 @@ impl ClientShellState {
                 None => {}
             }
             if let Some(press) = self.workspace_press.as_ref() {
+                #[cfg(feature = "watchtower")]
+                if self.config.preferences.space_groups.grouped {
+                    // Visual groups reorder rows independently of server workspace order.
+                    return;
+                }
                 let delta = mouse
                     .column
                     .abs_diff(press.start_column)
@@ -1376,6 +1381,14 @@ impl ClientShellState {
                 .find(|(rect, _)| super::contains(*rect, point))
                 .copied();
             match mouse.kind {
+                MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
+                    self.move_context_menu_selection(if mouse.kind == MouseEventKind::ScrollUp {
+                        -1
+                    } else {
+                        1
+                    });
+                    outcome.repaint = true;
+                }
                 MouseEventKind::Moved => {
                     if let (Some((_, index)), Some(ClientShellOverlay::ContextMenu(menu))) =
                         (row_hit, self.overlay.as_mut())
@@ -1786,6 +1799,23 @@ impl ClientShellState {
                 if !self.config.mouse_capture {
                     return;
                 }
+                #[cfg(feature = "watchtower")]
+                if let Some((_, endpoint_id, group_id)) = self
+                    .hits
+                    .space_groups
+                    .iter()
+                    .find(|(rect, _, _)| super::contains(*rect, point))
+                    .cloned()
+                {
+                    self.open_space_group_context_menu(
+                        endpoint_id,
+                        group_id,
+                        mouse.column,
+                        mouse.row,
+                    );
+                    outcome.repaint = true;
+                    return;
+                }
                 let workspace_id = (!self.sidebar_collapsed)
                     .then(|| self.active_endpoint_workspace_at(point))
                     .flatten();
@@ -1966,12 +1996,33 @@ impl ClientShellState {
                     return;
                 }
                 if super::contains(self.hits.agent_sort_toggle, point) {
-                    self.config.agent_panel_sort = self.config.agent_panel_sort.next();
-                    self.agent_panel_sort_manual = true;
-                    self.agent_scroll = 0;
-                    self.persist_chrome_preferences(outcome);
+                    self.open_agent_sort_menu(
+                        self.hits.agent_sort_toggle.x,
+                        self.hits.agent_sort_toggle.bottom(),
+                    );
                     outcome.repaint = true;
                     return;
+                }
+                #[cfg(feature = "watchtower")]
+                {
+                    if super::contains(self.hits.spaces_grouping_toggle, point) {
+                        self.open_spaces_grouping_menu(
+                            self.hits.spaces_grouping_toggle.x,
+                            self.hits.spaces_grouping_toggle.bottom(),
+                        );
+                        outcome.repaint = true;
+                        return;
+                    }
+                    if let Some((_, endpoint_id, group_id)) = self
+                        .hits
+                        .space_groups
+                        .iter()
+                        .find(|(rect, _, _)| super::contains(*rect, point))
+                        .cloned()
+                    {
+                        self.toggle_space_group(endpoint_id, group_id, outcome);
+                        return;
+                    }
                 }
                 if self.handle_endpoint_machine_click(point, outcome) {
                     return;
@@ -2101,6 +2152,19 @@ impl ClientShellState {
                         }),
                         outcome,
                     );
+                    return;
+                }
+                #[cfg(feature = "watchtower")]
+                if let Some((_, pane_id)) = self
+                    .hits
+                    .results_buttons
+                    .iter()
+                    .find(|(rect, _)| super::contains(*rect, point))
+                {
+                    let pane_id = pane_id.clone();
+                    self.last_pane_click = None;
+                    self.open_results_for_pane(pane_id, outcome);
+                    outcome.repaint = true;
                     return;
                 }
                 let scrollbar_hit = self

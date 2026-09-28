@@ -59,8 +59,10 @@ impl ClientShellState {
             agent_panel_sort: self
                 .agent_panel_sort_manual
                 .then_some(self.config.agent_panel_sort),
+            agent_current_workspace_only: Some(self.config.agent_current_workspace_only),
             collapsed_groups,
             remote_collapsed_groups,
+            space_groups: self.config.preferences.space_groups.clone(),
         };
         if let Err(error) = preferences::store(path, preferences) {
             self.set_endpoint_error(error);
@@ -124,6 +126,7 @@ impl ClientShellConfig {
             spaces: config.ui.sidebar.spaces.clone(),
             agents: config.ui.sidebar.agents.clone(),
             agent_panel_sort: config.ui.agent_panel_sort,
+            agent_current_workspace_only: false,
             status_indicators: config.ui.status_indicators,
             sound_enabled: config.ui.sound.enabled,
             toast_delivery: config.ui.toast.delivery,
@@ -449,6 +452,41 @@ mod tests {
     use crossterm::event::{KeyCode, KeyModifiers};
 
     use super::*;
+
+    #[test]
+    fn chrome_persistence_preserves_endpoint_space_groups() {
+        let path = std::env::temp_dir().join(format!(
+            "watchtower-space-group-preferences-{}.json",
+            crate::client::endpoint::ProfileId::generate()
+        ));
+        let mut config = ClientShellConfig::from_config(&Config::default());
+        config.preferences_path = Some(path.clone());
+        let id = config
+            .preferences
+            .space_groups
+            .create("local", "Projects")
+            .unwrap();
+        config
+            .preferences
+            .space_groups
+            .assign("local", &["ws_1".into()], Some(&id))
+            .unwrap();
+        config
+            .preferences
+            .space_groups
+            .toggle("local", &id)
+            .unwrap();
+        config.preferences.space_groups.grouped = true;
+        let expected = config.preferences.space_groups.clone();
+        let mut state = ClientShellState::new(config);
+        state.sidebar_width_manual = true;
+        state.sidebar_width = 30;
+        state.persist_chrome_preferences(&mut ClientShellInput::default());
+        let saved = preferences::load(&path).expect("persisted client preferences");
+        assert_eq!(saved.space_groups, expected);
+        assert_eq!(saved.sidebar_width, Some(30));
+        std::fs::remove_file(path).expect("remove test preferences");
+    }
 
     #[test]
     fn live_reload_applies_client_owned_sections() {

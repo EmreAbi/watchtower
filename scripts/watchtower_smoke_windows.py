@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,21 @@ class SmokeFailure(RuntimeError):
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise SmokeFailure(message)
+
+
+def verify_package_version(binary: Path, actual: str) -> str:
+    """Check the extracted package's identity, without freezing a preview number."""
+    try:
+        manifest = json.loads((binary.parent / "BUILD-MANIFEST.json").read_text(encoding="utf-8"))
+        expected = manifest["version"]
+        require(manifest["product"] == "Watchtower", "The package is not Watchtower")
+        require(isinstance(expected, str) and re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", expected) is not None,
+                "The package version is invalid")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise SmokeFailure("The extracted package needs a valid BUILD-MANIFEST.json") from exc
+    require(actual.split()[:2] == ["watchtower", expected],
+            "The binary version does not match the extracted package")
+    return expected
 
 
 class PrivateJob:
@@ -295,7 +311,7 @@ def smoke(binary: Path, temporary: Path) -> dict:
         a = Instance(binary, a_home, "a", isolated_environment(a_home, "a"))
         instances.append(a)
         version = a.run("--version").stdout.strip()
-        require(version.startswith("watchtower 0.1.0-preview.1"), "The binary is not the expected Watchtower preview")
+        verify_package_version(binary, version)
         report["version"] = version
         defaults = a.run("--default-config").stdout
         require('agent_panel_sort = "role"' in defaults and "$team_role" in defaults, "Role defaults missing")

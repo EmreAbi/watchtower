@@ -19,6 +19,7 @@ window_title = "Watchtower: {workspace}"
 row_gap = 0
 rows = [
   ["state_icon", { token = "agent", bold = true }],
-  [{ token = "$team_role", fg = "#A6ADC8", rules = [{ contains = "CONTROL", fg = "#89B4FA", bold = true }, { contains = "REVIEW", fg = "#CBA6F7", bold = true }] }, "state_text"],
+  [{ token = "$team_role", fg = "#A6ADC8", rules = [{ contains = "CONTROL", fg = "#89B4FA", bold = true }, { contains = "REVIEW", fg = "#CBA6F7", bold = true }] }],
+  ["state_text"],
   [{ token = "$team_target", fg = "#A6ADC8" }],
 ]

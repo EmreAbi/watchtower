@@ -708,7 +708,11 @@ fn active_agent_view_controls_sidebar_order_and_focus_indices() {
             .collect::<Vec<_>>(),
         vec!["pane_2", "pane_3"]
     );
-    assert_eq!(state.hits.agent_sort_toggle, Rect::default());
+    if cfg!(feature = "watchtower") {
+        assert!(!state.hits.agent_sort_toggle.is_empty());
+    } else {
+        assert_eq!(state.hits.agent_sort_toggle, Rect::default());
+    }
 
     let mut focus = ClientShellInput::default();
     state.record_binding(
@@ -740,7 +744,9 @@ fn active_agent_view_controls_sidebar_order_and_focus_indices() {
 }
 
 #[test]
-fn agent_sort_toggle_is_client_local_and_persists_per_endpoint() {
+fn agent_sort_menu_selection_is_client_local_and_persists() {
+    use crate::config::AgentPanelSortConfig as Sort;
+
     let path = std::env::temp_dir().join(format!(
         "herdr-shell-agent-sort-{}-{}.json",
         std::process::id(),
@@ -775,16 +781,20 @@ fn agent_sort_toggle_is_client_local_and_persists_per_endpoint() {
         state.config.agent_panel_sort,
         crate::config::AgentPanelSortConfig::Spaces
     );
+    // Select out of order to prove the control is a choice, rather than a cycle.
     for expected in [
-        crate::config::AgentPanelSortConfig::Priority,
-        crate::config::AgentPanelSortConfig::Role,
-        crate::config::AgentPanelSortConfig::Spaces,
+        Sort::Name,
+        Sort::Role,
+        Sort::Recent,
+        Sort::Spaces,
+        Sort::Priority,
     ] {
         state.compose(106, 30).expect("agent sidebar frame");
         let toggle = state.hits.agent_sort_toggle;
         assert!(!toggle.is_empty());
         state.agent_scroll = 7;
-        let click =
+        let previous = state.config.agent_panel_sort;
+        let open =
             state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
                 kind: MouseEventKind::Down(MouseButton::Left),
                 column: toggle.x,
@@ -792,9 +802,43 @@ fn agent_sort_toggle_is_client_local_and_persists_per_endpoint() {
                 modifiers: KeyModifiers::empty(),
             })]);
 
+        assert_eq!(state.config.agent_panel_sort, previous);
+        assert_eq!(state.agent_scroll, 7);
+        assert!(open.actions.is_empty());
+        assert!(open.requests.is_empty());
+        let Some(ClientShellOverlay::ContextMenu(menu)) = state.overlay.as_ref() else {
+            panic!("agent sort dropdown should open");
+        };
+        let items = menu.items();
+        assert_eq!(
+            items[menu.highlighted].action,
+            ClientContextMenuAction::SetAgentSort(previous)
+        );
+        assert_eq!(
+            items
+                .iter()
+                .filter(|item| item.label.starts_with('✓'))
+                .count(),
+            1
+        );
+        assert!(items[menu.highlighted].label.starts_with('✓'));
+        let index = items
+            .iter()
+            .position(|item| item.action == ClientContextMenuAction::SetAgentSort(expected))
+            .expect("requested sort option");
+        state.compose(106, 30).expect("agent sort dropdown frame");
+        let option = state.hits.context_menu_rows[index].0;
+        state.agent_scroll = 7;
+        let click = state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: option.x,
+            row: option.y,
+            modifiers: KeyModifiers::empty(),
+        })]);
         assert_eq!(state.config.agent_panel_sort, expected);
         assert!(state.agent_panel_sort_manual);
         assert_eq!(state.agent_scroll, 0);
+        assert!(state.overlay.is_none());
         assert!(click.repaint);
         assert!(
             click.actions.is_empty(),
@@ -811,6 +855,232 @@ fn agent_sort_toggle_is_client_local_and_persists_per_endpoint() {
         assert!(reloaded.agent_panel_sort_manual);
     }
     std::fs::remove_file(path).expect("remove agent sort preferences");
+}
+
+#[cfg(feature = "watchtower")]
+#[test]
+fn agent_workspace_filter_menu_is_independent_persistent_and_reversible() {
+    let path = std::env::temp_dir().join(format!(
+        "watchtower-agent-workspace-{}-{}.json",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let mut base = Config::default();
+    base.ui.agent_panel_sort = crate::config::AgentPanelSortConfig::Role;
+    let config = ClientShellConfig::from_config(&base).with_preferences_path(path.clone());
+    let mut state = ClientShellState::new(config);
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    assert!(!state.config.agent_current_workspace_only);
+    for enabled in [true, false] {
+        state.compose(106, 30).expect("agent header");
+        let toggle = state.hits.agent_sort_toggle;
+        state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: toggle.x,
+            row: toggle.y,
+            modifiers: KeyModifiers::empty(),
+        })]);
+        let Some(ClientShellOverlay::ContextMenu(menu)) = state.overlay.as_ref() else {
+            panic!("agents dropdown");
+        };
+        let index = menu
+            .items()
+            .iter()
+            .position(|item| {
+                item.action == ClientContextMenuAction::SetAgentWorkspaceFilter(enabled)
+            })
+            .expect("workspace filter option");
+        assert_eq!(menu.items()[index].label.starts_with('✓'), !enabled);
+        state.compose(106, 30).expect("agents dropdown");
+        let option = state.hits.context_menu_rows[index].0;
+        state.agent_scroll = 7;
+        let outcome = state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: option.x,
+            row: option.y,
+            modifiers: KeyModifiers::empty(),
+        })]);
+        assert_eq!(state.config.agent_current_workspace_only, enabled);
+        assert_eq!(
+            state.config.agent_panel_sort,
+            crate::config::AgentPanelSortConfig::Role
+        );
+        assert_eq!(state.agent_scroll, 0);
+        assert!(state.overlay.is_none());
+        assert!(outcome.repaint && outcome.actions.is_empty() && outcome.requests.is_empty());
+        let restored = ClientShellState::new(
+            ClientShellConfig::from_config(&base).with_preferences_path(path.clone()),
+        );
+        assert_eq!(restored.config.agent_current_workspace_only, enabled);
+        assert_eq!(
+            restored.config.agent_panel_sort,
+            crate::config::AgentPanelSortConfig::Role
+        );
+        // Reloading UI configuration must not reset this client preference.
+        state.config.apply_live_config(&base, &[], &[]);
+        assert_eq!(state.config.agent_current_workspace_only, enabled);
+    }
+    std::fs::remove_file(path).expect("remove test preference file");
+}
+
+#[test]
+fn agent_sort_dropdown_arrow_opens_at_header_and_keyboard_can_cancel_or_select() {
+    use crate::config::AgentPanelSortConfig as Sort;
+
+    let mut config = Config::default();
+    config.ui.agent_panel_sort = Sort::Role;
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    let frame = state.compose(106, 30).expect("sidebar frame");
+    let toggle = state.hits.agent_sort_toggle;
+    let header = (toggle.x..toggle.right())
+        .map(|x| {
+            frame.cells[toggle.y as usize * frame.width as usize + x as usize]
+                .symbol
+                .as_str()
+        })
+        .collect::<String>();
+    assert_eq!(header, "role ▾");
+    let open = || {
+        RawInputEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: toggle.right() - 1,
+            row: toggle.y,
+            modifiers: KeyModifiers::empty(),
+        })
+    };
+    state.handle_raw_events(vec![open()]);
+    let Some(ClientShellOverlay::ContextMenu(menu)) = state.overlay.as_ref() else {
+        panic!("arrow click should open dropdown");
+    };
+    assert_eq!((menu.x, menu.y), (toggle.x, toggle.bottom()));
+    assert_eq!(
+        menu.items()[menu.highlighted].action,
+        ClientContextMenuAction::SetAgentSort(Sort::Role)
+    );
+    let key =
+        |code| RawInputEvent::Key(crate::input::TerminalKey::new(code, KeyModifiers::empty()));
+    let cancel = state.handle_raw_events(vec![key(KeyCode::Down), key(KeyCode::Esc)]);
+    assert!(state.overlay.is_none());
+    assert_eq!(state.config.agent_panel_sort, Sort::Role);
+    assert!(!state.agent_panel_sort_manual);
+    assert!(cancel.actions.is_empty());
+    assert!(cancel.requests.is_empty());
+
+    state.handle_raw_events(vec![open()]);
+    let select = state.handle_raw_events(vec![key(KeyCode::Up), key(KeyCode::Enter)]);
+    assert!(state.overlay.is_none());
+    assert_eq!(state.config.agent_panel_sort, Sort::Priority);
+    assert!(state.agent_panel_sort_manual);
+    assert!(select.repaint);
+    assert!(select.actions.is_empty());
+    assert!(select.requests.is_empty());
+}
+
+#[cfg(feature = "watchtower")]
+#[test]
+fn agent_workspace_filter_can_be_disabled_inside_a_custom_view_without_changing_sort() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.config.agent_current_workspace_only = true;
+    let mut projected = snapshot();
+    projected.agent_view_label = Some("review".into());
+    state.set_snapshot(Box::new(projected));
+    state.set_pane_surface(surface());
+    let frame = state.compose(106, 30).expect("custom view header");
+    let toggle = state.hits.agent_sort_toggle;
+    assert!(!toggle.is_empty());
+    let header = (toggle.x..toggle.right())
+        .map(|x| {
+            frame.cells[toggle.y as usize * frame.width as usize + x as usize]
+                .symbol
+                .as_str()
+        })
+        .collect::<String>();
+    assert!(header.contains("workspace"), "{header}");
+    state.open_agent_sort_menu(toggle.x, toggle.bottom());
+    let Some(ClientShellOverlay::ContextMenu(menu)) = state.overlay.as_ref() else {
+        panic!("custom view still exposes workspace scope");
+    };
+    let items = menu.items();
+    assert_eq!(
+        items.len(),
+        1,
+        "custom view must keep server-owned sorting locked"
+    );
+    assert_eq!(
+        items[0].action,
+        ClientContextMenuAction::SetAgentWorkspaceFilter(false)
+    );
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(0, &mut outcome);
+    assert!(!state.config.agent_current_workspace_only);
+    assert_eq!(
+        state.snapshot.as_ref().unwrap().agent_view_label.as_deref(),
+        Some("review")
+    );
+    assert!(!state.agent_panel_sort_manual);
+    assert!(outcome.actions.is_empty() && outcome.requests.is_empty());
+}
+
+#[test]
+fn agent_sort_dropdown_outside_click_cancels_without_activating_underlying_pane() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("sidebar frame");
+    let toggle = state.hits.agent_sort_toggle;
+    state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: toggle.x,
+        row: toggle.y,
+        modifiers: KeyModifiers::empty(),
+    })]);
+    state.compose(106, 30).expect("dropdown frame");
+    state.agent_scroll = 7;
+    let click = state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 100,
+        row: 10,
+        modifiers: KeyModifiers::empty(),
+    })]);
+    assert!(state.overlay.is_none());
+    assert_eq!(
+        state.config.agent_panel_sort,
+        crate::config::AgentPanelSortConfig::Spaces
+    );
+    assert!(!state.agent_panel_sort_manual);
+    assert_eq!(state.agent_scroll, 7);
+    assert!(click.repaint);
+    assert!(click.actions.is_empty());
+    assert!(click.requests.is_empty());
+}
+
+#[test]
+fn agent_sort_menu_does_not_override_a_custom_view_arriving_while_open() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    let mut projected = snapshot();
+    state.set_snapshot(Box::new(projected.clone()));
+    state.open_agent_sort_menu(10, 10);
+    assert!(matches!(
+        state.overlay,
+        Some(ClientShellOverlay::ContextMenu(_))
+    ));
+    projected.agent_view_label = Some("custom".into());
+    state.set_snapshot(Box::new(projected));
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(4, &mut outcome);
+    assert_eq!(
+        state.config.agent_panel_sort,
+        crate::config::AgentPanelSortConfig::Spaces
+    );
+    assert!(!state.agent_panel_sort_manual);
+    assert!(outcome.actions.is_empty());
+    assert!(outcome.requests.is_empty());
 }
 
 #[test]
@@ -892,8 +1162,8 @@ fn role_order_matches_expanded_collapsed_hits_and_agent_navigation() {
 }
 
 #[test]
-#[ignore = "non-gating fixed-geometry role ordering composition profile"]
-fn role_render_scale_profile() {
+#[ignore = "non-gating fixed-geometry agent ordering composition profile"]
+fn agent_sort_render_scale_profile() {
     const COLS: u16 = 146;
     const ROWS: u16 = 80;
     for count in [1, 15] {
@@ -932,6 +1202,8 @@ fn role_render_scale_profile() {
         for sort in [
             crate::config::AgentPanelSortConfig::Spaces,
             crate::config::AgentPanelSortConfig::Role,
+            crate::config::AgentPanelSortConfig::Recent,
+            crate::config::AgentPanelSortConfig::Name,
         ] {
             let mut config = Config::default();
             config.ui.agent_panel_sort = sort;
@@ -947,7 +1219,7 @@ fn role_render_scale_profile() {
             state.set_snapshot(Box::new(projected.clone()));
             state.set_pane_surface(surface());
             for _ in 0..20 {
-                std::hint::black_box(state.compose(COLS, ROWS).expect("role profile warmup"));
+                std::hint::black_box(state.compose(COLS, ROWS).expect("sort profile warmup"));
             }
             assert_eq!(
                 state.hits.agents.len(),
@@ -957,7 +1229,7 @@ fn role_render_scale_profile() {
             let mut samples = Vec::with_capacity(200);
             for _ in 0..200 {
                 let started = std::time::Instant::now();
-                std::hint::black_box(state.compose(COLS, ROWS).expect("role profile frame"));
+                std::hint::black_box(state.compose(COLS, ROWS).expect("sort profile frame"));
                 samples.push(started.elapsed().as_nanos());
             }
             samples.sort_unstable();
@@ -966,7 +1238,7 @@ fn role_render_scale_profile() {
                 baseline_ns = median_ns;
             }
             eprintln!(
-                "role-order agents={count} geometry={COLS}x{ROWS} sort={sort:?} median_us={:.1} p95_us={:.1} relative_to_spaces={:.3}",
+                "agent-order agents={count} geometry={COLS}x{ROWS} sort={sort:?} median_us={:.1} p95_us={:.1} relative_to_spaces={:.3}",
                 median_ns / 1000.0,
                 samples[190] as f64 / 1000.0,
                 median_ns / baseline_ns.max(1.0),

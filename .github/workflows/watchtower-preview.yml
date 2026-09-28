@@ -6,11 +6,15 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUTF8: "1"
+
 jobs:
   windows-preview:
     if: github.repository == 'EmreAbi/watchtower'
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -26,6 +30,13 @@ jobs:
       - uses: vercel-labs/setup-zig@83c1594f26b86da8a9a8ddd9b5ee5f3af0f96943 # v1.0.2
         with:
           version: 0.16.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12.10"
+      - name: Install pinned UI test dependencies
+        shell: pwsh
+        # Keep these identical to the explicit private-runtime installer.
+        run: python -B -m pip install --disable-pip-version-check --only-binary=:all: textual==8.2.8 Pillow==12.3.0 pypdfium2==5.13.0
       - name: Check Watchtower code
         shell: pwsh
         run: |
@@ -36,10 +47,22 @@ jobs:
           cargo nextest run --locked --features watchtower --bin herdr
       - name: Test packaging contract
         shell: pwsh
-        run: python -B -m unittest scripts.test_watchtower_package scripts.test_package_windows_conpty scripts.test_watchtower_radio
+        run: |
+          python -B -m unittest discover -s scripts -p 'test_watchtower_*.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B -m unittest scripts.test_package_windows_conpty
+      - name: Test all private-runtime components with synthetic fixtures
+        shell: pwsh
+        run: |
+          # Separate Python processes avoid collisions between sibling view/service modules.
+          # These suites mock providers: no accounts, login or paid inference is needed.
+          foreach ($suite in @('accounts', 'results', 'teams', 'benchmarks')) {
+            python -B -m unittest discover -s "distribution/watchtower/$suite" -p 'test_*.py'
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
       - name: Build verified portable archive
         shell: pwsh
-        run: ./scripts/watchtower_build_windows.ps1
+        run: ./scripts/watchtower_build_windows.ps1 -RequireCleanSource
       - name: Verify isolated runtime from extracted archive
         shell: pwsh
         run: |

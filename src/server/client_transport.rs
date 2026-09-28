@@ -1838,6 +1838,57 @@ mod tests {
     }
 
     #[test]
+    fn advertised_plugin_popup_request_dispatches_after_json_serialization() {
+        let request = crate::api::schema::Request {
+            id: "accounts-menu:1".into(),
+            method: crate::api::schema::Method::PluginPaneOpen(
+                crate::api::schema::PluginPaneOpenParams {
+                    plugin_id: "watchtower-accounts".into(),
+                    entrypoint: "center".into(),
+                    placement: Some(crate::api::schema::PluginPanePlacement::Popup),
+                    width: Some(crate::popup_size::PopupSize::Percent(90)),
+                    height: Some(crate::popup_size::PopupSize::Percent(90)),
+                    workspace_id: None,
+                    target_pane_id: None,
+                    direction: None,
+                    cwd: None,
+                    focus: true,
+                    env: Default::default(),
+                },
+            ),
+        };
+        assert!(
+            crate::server::client_commands::supported_client_shell_method_names()
+                .contains(&"plugin.pane.open")
+        );
+        let wire = serde_json::to_string(&request).expect("serialize plugin popup request");
+        let decoded = decode_endpoint_request(&wire).expect("decode plugin popup request");
+        let DecodedEndpointRequest::Dispatch(decoded) = decoded else {
+            panic!("advertised plugin popup request must reach the runtime dispatcher");
+        };
+        assert_eq!(decoded.id, request.id);
+        let crate::api::schema::Method::PluginPaneOpen(params) = decoded.method else {
+            panic!("plugin popup method must survive JSON dispatch");
+        };
+        assert_eq!(params.plugin_id, "watchtower-accounts");
+        assert_eq!(params.entrypoint, "center");
+        assert_eq!(
+            params.placement,
+            Some(crate::api::schema::PluginPanePlacement::Popup)
+        );
+        assert_eq!(
+            params.width,
+            Some(crate::popup_size::PopupSize::Percent(90))
+        );
+        assert_eq!(
+            params.height,
+            Some(crate::popup_size::PopupSize::Percent(90))
+        );
+        assert!(params.focus);
+        assert!(params.env.is_empty());
+    }
+
+    #[test]
     fn unknown_endpoint_method_returns_correlated_error() {
         let decoded = decode_endpoint_request(
             r#"{"id":"req-1","method":"plugin.future","params":{"value":1}}"#,

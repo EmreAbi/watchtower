@@ -1,0 +1,31 @@
+id = "watchtower-results"
+name = "Watchtower Results"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Results, optional activity and local output actions for the focused agent"
+platforms = ["windows"]
+
+[[panes]]
+id = "center"
+title = "Results"
+placement = "popup"
+width = "94%"
+height = "94%"
+command = ["cmd", "/d", "/c", "bin\\center.cmd"]
+
+[[actions]]
+id = "open"
+title = "View results and outputs"
+contexts = ["pane"]
+command = ["cmd", "/d", "/c", "bin\\center.cmd", "--open"]
+
+[[actions]]
+id = "preview"
+title = "Preview local output"
+command = ["cmd", "/d", "/c", "bin\\center.cmd", "--file"]
+
+[[link_handlers]]
+id = "local-output"
+title = "Preview local output"
+pattern = '(?i)^file://(?:localhost)?/[^?#]+\.(?:png|jpe?g|gif|webp|bmp|md|markdown|txt|json|csv|log|pdf)$'
+action = "preview"

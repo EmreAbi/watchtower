@@ -5,6 +5,10 @@ use crate::protocol::{
     PaneSurfaceSplit, PaneSurfaceSplitDirection, SurfaceRect,
 };
 use crossterm::event::MouseEvent;
+#[cfg(feature = "watchtower")]
+mod space_groups_render;
+#[cfg(feature = "watchtower")]
+mod space_groups_ui;
 mod text_editing;
 
 pub(super) fn snapshot() -> ClientShellSnapshot {
@@ -244,6 +248,7 @@ fn surface_with_popup() -> PaneSurfaceFrame {
     surface
 }
 
+mod agent_workspace_filter;
 mod agents_worktrees_notifications;
 mod chrome_context;
 mod copy;
@@ -257,4 +262,6 @@ mod link_hover;
 mod mobile;
 mod mouse_selection;
 mod popup_focus_projection;
+#[cfg(feature = "watchtower")]
+mod results_header;
 mod startup_overlays;

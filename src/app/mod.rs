@@ -113,6 +113,8 @@ pub struct App {
     pub(crate) event_rx: mpsc::Receiver<AppEvent>,
     pub(crate) api_rx: tokio::sync::mpsc::UnboundedReceiver<crate::api::ApiRequestMessage>,
     pub(crate) event_hub: crate::api::EventHub,
+    // Runtime-only submission ownership; an exit must not overtake queued work.
+    pub(crate) pending_agent_prompt_submissions: Arc<std::sync::Mutex<HashMap<String, usize>>>,
     pub(crate) last_focus: Option<(usize, crate::layout::PaneId)>,
     pub(crate) policy: AppPolicy,
     pub(crate) config_diagnostic_deadline: Option<Instant>,
@@ -195,8 +197,10 @@ fn agent_panel_sort_from_config(
     match sort {
         crate::config::AgentPanelSortConfig::Spaces => state::AgentPanelSort::Spaces,
         crate::config::AgentPanelSortConfig::Priority => state::AgentPanelSort::Priority,
-        // Role ordering is client-owned; preserve the workspace order in snapshots.
-        crate::config::AgentPanelSortConfig::Role => state::AgentPanelSort::Spaces,
+        // Presentation-only sorts preserve the workspace order in server snapshots.
+        crate::config::AgentPanelSortConfig::Role
+        | crate::config::AgentPanelSortConfig::Recent
+        | crate::config::AgentPanelSortConfig::Name => state::AgentPanelSort::Spaces,
     }
 }
 
@@ -589,6 +593,7 @@ impl App {
             git_identity_refresh_requested: false,
             git_status_cache: HashMap::new(),
             pending_api_worktree_creates: HashMap::new(),
+            pending_agent_prompt_submissions: Arc::new(std::sync::Mutex::new(HashMap::new())),
             pending_api_worktree_removes: HashMap::new(),
             pending_api_worktree_remove_paths: HashMap::new(),
             pending_worktree_remove_runtime_exits: HashMap::new(),
@@ -1350,11 +1355,17 @@ mod tests {
     }
 
     #[test]
-    fn role_sort_keeps_workspace_order_in_server_snapshots() {
-        assert_eq!(
-            agent_panel_sort_from_config(crate::config::AgentPanelSortConfig::Role),
-            state::AgentPanelSort::Spaces
-        );
+    fn client_sorts_keep_workspace_order_in_server_snapshots() {
+        for sort in [
+            crate::config::AgentPanelSortConfig::Role,
+            crate::config::AgentPanelSortConfig::Recent,
+            crate::config::AgentPanelSortConfig::Name,
+        ] {
+            assert_eq!(
+                agent_panel_sort_from_config(sort),
+                state::AgentPanelSort::Spaces
+            );
+        }
     }
 
     #[test]

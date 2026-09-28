@@ -1266,6 +1266,36 @@
           },
           "type": "object"
         },
+        "AgentQuitIfIdleParams": {
+          "description": "Identity-bound Codex exit. A successful check never sends terminal input.",
+          "properties": {
+            "check_only": {
+              "default": false,
+              "type": "boolean"
+            },
+            "session_id": {
+              "type": "string"
+            },
+            "state_change_seq": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "target": {
+              "type": "string"
+            },
+            "terminal_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "target",
+            "terminal_id",
+            "session_id",
+            "state_change_seq"
+          ],
+          "type": "object"
+        },
         "AgentReadParams": {
           "properties": {
             "format": {
@@ -5363,6 +5393,22 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/AgentSendKeysParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "agent.quit-if-idle",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/AgentQuitIfIdleParams"
             }
           },
           "required": [

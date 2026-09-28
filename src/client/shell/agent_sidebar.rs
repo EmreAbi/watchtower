@@ -1,5 +1,5 @@
 // Watchtower modifications: independent preview identity, isolation or role presentation.
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use ratatui::{
     buffer::Buffer,
@@ -65,11 +65,57 @@ pub(super) fn ordered_agent_pane_ids(
         });
     } else if sort == crate::config::AgentPanelSortConfig::Role {
         agents.sort_by_key(|agent| agent_role_rank(&agent.tokens));
+    } else if sort == crate::config::AgentPanelSortConfig::Recent {
+        agents.sort_by_key(|agent| std::cmp::Reverse(agent.state_change_seq));
+    } else if sort == crate::config::AgentPanelSortConfig::Name {
+        agents.sort_by_cached_key(|agent| agent_sort_name(agent));
     }
     agents
         .into_iter()
         .map(|agent| agent.pane_id.clone())
         .collect()
+}
+
+/// Apply the client-only workspace scope after the selected view and sort.
+pub(super) fn visible_agent_pane_ids(
+    snapshot: &ClientShellSnapshot,
+    config: &ClientShellConfig,
+) -> Vec<String> {
+    let mut panes = ordered_agent_pane_ids(snapshot, config.agent_panel_sort);
+    if config.agent_current_workspace_only {
+        let visible = snapshot
+            .agents
+            .iter()
+            .filter(|agent| {
+                Some(agent.workspace_id.as_str()) == snapshot.focused_workspace_id.as_deref()
+            })
+            .map(|agent| agent.pane_id.as_str())
+            .collect::<HashSet<_>>();
+        panes.retain(|pane_id| visible.contains(pane_id.as_str()));
+    }
+    panes
+}
+
+pub(super) fn agent_empty_message(
+    agent_view_label: Option<&str>,
+    config: &ClientShellConfig,
+) -> Option<&'static str> {
+    if config.agent_current_workspace_only {
+        Some(" no agents in workspace")
+    } else {
+        agent_view_label.map(|_| " no matching agents")
+    }
+}
+
+pub(super) fn agent_sort_name(agent: &crate::protocol::ClientShellAgent) -> String {
+    agent
+        .display_agent
+        .as_deref()
+        .or(agent.name.as_deref())
+        .or(agent.agent.as_deref())
+        .or(agent.title.as_deref())
+        .unwrap_or("")
+        .to_lowercase()
 }
 
 pub(super) fn render_agent_panel(
@@ -95,10 +141,7 @@ pub(super) fn render_agent_panel(
         buffer,
         area,
         &rows,
-        snapshot
-            .agent_view_label
-            .as_ref()
-            .map(|_| " no matching agents"),
+        agent_empty_message(snapshot.agent_view_label.as_deref(), config),
         config,
         agent_scroll,
         hits,
@@ -141,19 +184,49 @@ pub(super) fn render_agent_panel_header(
             .fg(config.palette.overlay0)
             .add_modifier(Modifier::BOLD),
     );
-    let sort_label = agent_view_label.unwrap_or(match config.agent_panel_sort {
-        crate::config::AgentPanelSortConfig::Spaces => "grouped",
-        crate::config::AgentPanelSortConfig::Priority => "priority",
-        crate::config::AgentPanelSortConfig::Role => "role",
+    let sort_label = agent_view_label.unwrap_or(if config.agent_current_workspace_only {
+        "workspace ▾"
+    } else {
+        match config.agent_panel_sort {
+            crate::config::AgentPanelSortConfig::Spaces => "grouped ▾",
+            crate::config::AgentPanelSortConfig::Priority => "priority ▾",
+            crate::config::AgentPanelSortConfig::Role => "role ▾",
+            crate::config::AgentPanelSortConfig::Recent => "recent ▾",
+            crate::config::AgentPanelSortConfig::Name => "name ▾",
+        }
     });
-    let sort_width = display_width(sort_label).min(area.width as usize) as u16;
+    #[cfg(feature = "watchtower")]
+    let custom_label = agent_view_label.map(|label| {
+        if config.agent_current_workspace_only {
+            format!("{label} · workspace ▾")
+        } else {
+            format!("{label} ▾")
+        }
+    });
+    #[cfg(feature = "watchtower")]
+    let sort_label = custom_label.as_deref().unwrap_or(sort_label);
+    let menu_enabled = agent_view_label.is_none() || cfg!(feature = "watchtower");
+    // Keep the section label legible on narrow sidebars and retain a clickable arrow.
+    let available = area.width.saturating_sub(9);
+    let sort_label = if menu_enabled && display_width(sort_label) > usize::from(available) {
+        if config.agent_current_workspace_only
+            && display_width("workspace ▾") <= usize::from(available)
+        {
+            "workspace ▾"
+        } else {
+            "▾"
+        }
+    } else {
+        sort_label
+    };
+    let sort_width = display_width(sort_label).min(usize::from(available)) as u16;
     let sort_rect = Rect::new(
         area.right().saturating_sub(sort_width),
         area.y + 1,
         sort_width,
         1,
     );
-    hits.agent_sort_toggle = if config.mouse_capture && agent_view_label.is_none() {
+    hits.agent_sort_toggle = if config.mouse_capture && menu_enabled {
         sort_rect
     } else {
         Rect::default()
@@ -263,7 +336,7 @@ pub(super) fn agent_rows(
     config: &ClientShellConfig,
     machine: Option<&str>,
 ) -> Vec<AgentRow> {
-    ordered_agent_pane_ids(snapshot, config.agent_panel_sort)
+    visible_agent_pane_ids(snapshot, config)
         .into_iter()
         .filter_map(|pane_id| agent_row(snapshot, &pane_id, config, machine))
         .collect()
@@ -411,6 +484,16 @@ fn display_width(text: &str) -> usize {
 
 fn sidebar_status_text(status: crate::api::schema::AgentStatus) -> &'static str {
     use crate::api::schema::AgentStatus;
+    // Presentation only: status keys, priority and detector authority stay stable.
+    #[cfg(feature = "watchtower")]
+    match status {
+        AgentStatus::Blocked => "Needs your input",
+        AgentStatus::Done => "Result ready",
+        AgentStatus::Working => "Working",
+        AgentStatus::Idle => "Ready for task",
+        AgentStatus::Unknown => "Status unknown",
+    }
+    #[cfg(not(feature = "watchtower"))]
     match status {
         AgentStatus::Blocked => "blocked",
         AgentStatus::Done => "done",
@@ -445,6 +528,60 @@ mod role_tests {
                 .unwrap_or_default(),
             focused: false,
         }
+    }
+
+    #[cfg(feature = "watchtower")]
+    #[test]
+    fn watchtower_agent_states_are_clear_without_changing_status_keys_or_priority() {
+        for (status, label, key, priority) in [
+            (AgentStatus::Blocked, "Needs your input", "blocked", 4),
+            (AgentStatus::Done, "Result ready", "done", 3),
+            (AgentStatus::Working, "Working", "working", 2),
+            (AgentStatus::Idle, "Ready for task", "idle", 1),
+            (AgentStatus::Unknown, "Status unknown", "unknown", 0),
+        ] {
+            assert_eq!(sidebar_status_text(status), label);
+            assert_eq!(status_text(status), key);
+            assert_eq!(status_priority(status), priority);
+        }
+    }
+
+    #[cfg(not(feature = "watchtower"))]
+    #[test]
+    fn upstream_agent_state_labels_remain_unchanged() {
+        for (status, label) in [
+            (AgentStatus::Blocked, "blocked"),
+            (AgentStatus::Done, "done"),
+            (AgentStatus::Working, "working"),
+            (AgentStatus::Idle, "idle"),
+            (AgentStatus::Unknown, "idle"),
+        ] {
+            assert_eq!(sidebar_status_text(status), label);
+        }
+    }
+
+    #[cfg(feature = "watchtower")]
+    #[test]
+    fn friendly_agent_states_preserve_custom_labels_and_role_tokens() {
+        let mut snapshot = super::super::tests::snapshot();
+        snapshot.agents = vec![agent("pane_1", Some("⚙  WORKER"), AgentStatus::Blocked)];
+        snapshot.agents[0].state_labels = vec![("blocked".into(), "Approval needed".into())];
+        let mut config = Config::default();
+        config.ui.sidebar.agents.rows = vec![vec![
+            crate::config::AgentSidebarToken::Custom("team_role".into()),
+            crate::config::AgentSidebarToken::StateText,
+        ]];
+        let config = ClientShellConfig::from_config(&config);
+        let row = agent_row(&snapshot, "pane_1", &config, None).unwrap();
+        assert_eq!(row.status, AgentStatus::Blocked);
+        let rect = Rect::new(0, 0, 64, 2);
+        let mut buffer = Buffer::empty(rect);
+        render_agent_row(&mut buffer, rect, &row, &config);
+        let text: String = (0..64).map(|x| buffer[(x, 0)].symbol()).collect();
+        assert!(text.contains("WORKER"), "{text}");
+        assert!(text.contains("⚙"), "{text}");
+        assert!(text.contains("Approval needed"), "{text}");
+        assert!(!text.contains("Needs your input"), "{text}");
     }
 
     #[test]
@@ -550,9 +687,9 @@ mod role_tests {
             &config,
             &mut hits
         ));
-        assert_eq!(hits.agent_sort_toggle, Rect::new(26, 1, 4, 1));
-        let text: String = (26..30).map(|x| buffer[(x, 1)].symbol()).collect();
-        assert_eq!(text, "role");
+        assert_eq!(hits.agent_sort_toggle, Rect::new(24, 1, 6, 1));
+        let text: String = (24..30).map(|x| buffer[(x, 1)].symbol()).collect();
+        assert_eq!(text, "role ▾");
         assert!(render_agent_panel_header(
             &mut buffer,
             area,
@@ -560,6 +697,51 @@ mod role_tests {
             &config,
             &mut hits
         ));
+        #[cfg(feature = "watchtower")]
+        assert!(!hits.agent_sort_toggle.is_empty());
+        #[cfg(not(feature = "watchtower"))]
         assert_eq!(hits.agent_sort_toggle, Rect::default());
+    }
+
+    #[test]
+    fn narrow_agent_header_keeps_a_dropdown_arrow_without_overlapping_title() {
+        let mut config = ClientShellConfig::from_config(&Config::default());
+        config.agent_panel_sort = AgentPanelSortConfig::Priority;
+        config.mouse_capture = true;
+        let area = Rect::new(0, 0, 12, 3);
+        let mut buffer = Buffer::empty(area);
+        let mut hits = ShellHitMap::default();
+        render_agent_panel_header(&mut buffer, area, None, &config, &mut hits);
+        assert_eq!(hits.agent_sort_toggle, Rect::new(11, 1, 1, 1));
+        assert_eq!(buffer[(11, 1)].symbol(), "▾");
+        let title: String = (0..7).map(|x| buffer[(x, 1)].symbol()).collect();
+        assert_eq!(title, " agents");
+        config.mouse_capture = false;
+        render_agent_panel_header(&mut buffer, area, None, &config, &mut hits);
+        assert!(hits.agent_sort_toggle.is_empty());
+    }
+
+    #[test]
+    fn name_and_recent_orders_use_visible_names_and_stable_ties() {
+        let mut snapshot = super::super::tests::snapshot();
+        snapshot.agents = vec![
+            agent("z", None, AgentStatus::Blocked),
+            agent("a", None, AgentStatus::Idle),
+            agent("a-tie", None, AgentStatus::Working),
+        ];
+        snapshot.agents[0].name = Some("Zulu".into());
+        snapshot.agents[0].state_change_seq = 2;
+        snapshot.agents[1].name = Some("alpha".into());
+        snapshot.agents[1].state_change_seq = 5;
+        snapshot.agents[2].display_agent = Some("ALPHA".into());
+        snapshot.agents[2].state_change_seq = 5;
+        for sort in [AgentPanelSortConfig::Name, AgentPanelSortConfig::Recent] {
+            assert_eq!(ordered_agent_pane_ids(&snapshot, sort), ["a", "a-tie", "z"]);
+        }
+        snapshot.agent_view_label = Some("explicit".into());
+        snapshot.agent_order = vec!["z".into(), "a-tie".into()];
+        for sort in [AgentPanelSortConfig::Name, AgentPanelSortConfig::Recent] {
+            assert_eq!(ordered_agent_pane_ids(&snapshot, sort), ["z", "a-tie"]);
+        }
     }
 }

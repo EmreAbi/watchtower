@@ -315,6 +315,19 @@ impl ClientShellState {
             frame.cells[start..start + usize::from(bar.width)].to_vec()
         });
         blit_pane_surface(&mut frame, &surface.frame, layout.pane_surface);
+        #[cfg(feature = "watchtower")]
+        if surface.popup.is_none() && self.popup_terminal_id.is_none() {
+            results_button::render_results_buttons(
+                &mut frame,
+                snapshot,
+                &self.hits.panes,
+                &self.config.palette,
+                &mut self.hits.results_buttons,
+            );
+            if !self.config.mouse_capture {
+                self.hits.results_buttons.clear();
+            }
+        }
         restore_mode_bar(&mut frame, mode_bar, mode_bar_cells.as_deref());
         let mut occlusion = crate::kitty_graphics::surface::Occlusion::default();
         let has_selection = self
@@ -606,6 +619,8 @@ impl ClientShellState {
             }
             frame.replace_from_ratatui_buffer_preserving_effects(&composed, None);
             self.hits.panes.clear();
+            #[cfg(feature = "watchtower")]
+            self.hits.results_buttons.clear();
             self.hits.pane_splits.clear();
             self.hits.popup = None;
         }
@@ -686,6 +701,8 @@ impl ClientShellState {
         if self.endpoint_status(&self.active_endpoint_id) != Some(ClientEndpointStatus::Online) {
             frame.cursor = None;
             self.hits.panes.clear();
+            #[cfg(feature = "watchtower")]
+            self.hits.results_buttons.clear();
             self.hits.pane_splits.clear();
             self.hits.popup = None;
         }

@@ -169,7 +169,7 @@ pub(crate) fn render_context_menu(
     let screen = buffer.area;
     let max_item_width = items
         .iter()
-        .map(|item| display_width(item.label))
+        .map(|item| display_width(&item.label))
         .max()
         .unwrap_or(0);
     let width = max_item_width
@@ -190,8 +190,10 @@ pub(crate) fn render_context_menu(
     let rect = Rect::new(x, y, width, height);
     let inner = panel(buffer, rect, palette.accent, palette.panel_bg)?;
     let mut rows = Vec::new();
-    for (index, item) in items.iter().enumerate() {
-        let row_y = inner.y.saturating_add(index as u16);
+    let page_height = usize::from(inner.height).max(1);
+    let start = (menu.highlighted / page_height) * page_height;
+    for (index, item) in items.iter().enumerate().skip(start) {
+        let row_y = inner.y.saturating_add((index - start) as u16);
         if row_y >= inner.bottom() {
             break;
         }
@@ -206,7 +208,7 @@ pub(crate) fn render_context_menu(
             Style::default().fg(palette.text).bg(palette.panel_bg)
         };
         buffer.set_style(row, style);
-        put_text(buffer, row.x, row.y, row.width, item.label, style);
+        put_text(buffer, row.x, row.y, row.width, &item.label, style);
         rows.push((row, index));
     }
     Some(OverlayRender {

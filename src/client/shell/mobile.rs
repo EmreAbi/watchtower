@@ -610,21 +610,28 @@ fn mobile_items(
             });
         }
     }
-    let agents = super::aggregate_navigation::aggregate_agent_rows(
+    let agents = super::aggregate_navigation::visible_aggregate_agent_rows(
         endpoints,
         active_endpoint_id,
-        config.agent_panel_sort,
+        config,
     );
     let agent_view_label = snapshot.agent_view_label.as_deref();
-    if !agents.is_empty() || agent_view_label.is_some() {
+    if !agents.is_empty() || agent_view_label.is_some() || config.agent_current_workspace_only {
         let title = agent_view_label
             .map(|label| format!("agents · {label}"))
-            .unwrap_or_else(|| "agents".to_owned());
+            .unwrap_or_else(|| {
+                if config.agent_current_workspace_only {
+                    "agents · workspace".to_owned()
+                } else {
+                    "agents".to_owned()
+                }
+            });
         items.push(MobileItem::section(title, palette));
         if agents.is_empty() {
             items.push(MobileItem {
                 lines: vec![Line::from(Span::styled(
-                    "  no matching agents",
+                    super::agent_sidebar::agent_empty_message(agent_view_label, config)
+                        .unwrap_or(" no matching agents"),
                     Style::default()
                         .fg(palette.overlay0)
                         .bg(palette.panel_bg)

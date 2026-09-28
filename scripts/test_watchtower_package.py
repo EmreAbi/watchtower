@@ -114,6 +114,21 @@ class WatchtowerPackageTests(unittest.TestCase):
         self.provenance["dirty"] = True
         self.assertTrue(self.build()["source"]["dirty"])
 
+    def test_release_mode_rejects_dirty_or_unknown_source_before_creating_archive(self) -> None:
+        for dirty in (True, None, "false", 0):
+            with self.subTest(dirty=dirty):
+                self.provenance["dirty"] = dirty
+                with self.assertRaisesRegex(ValueError, "clean source checkout"):
+                    package.package_preview(self.stage, self.output, root=self.root,
+                                            provenance=self.provenance, require_clean_source=True)
+                self.assertFalse(self.output.exists())
+                self.assertFalse(self.output.with_suffix(".zip.sha256").exists())
+
+    def test_release_mode_accepts_clean_source(self) -> None:
+        result = package.package_preview(self.stage, self.output, root=self.root,
+                                         provenance=self.provenance, require_clean_source=True)
+        self.assertIs(result["source"]["dirty"], False)
+
     def test_full_commit_required_for_provenance(self) -> None:
         self.provenance["commit"] = "unknown"
         with self.assertRaisesRegex(ValueError, "full Git SHA"):
@@ -140,6 +155,27 @@ class WatchtowerPackageTests(unittest.TestCase):
         shutil.copytree(package.ROOT / "distribution/watchtower/radio", radio_root)
         (radio_root / "radio.db").write_bytes(b"private runtime state")
         with self.assertRaises((ValueError, RuntimeError)):
+            self.build()
+        self.assertFalse(self.output.exists())
+
+    def test_accounts_source_is_packaged_without_tests_or_state(self) -> None:
+        shutil.copytree(package.ROOT / "distribution/watchtower/accounts",
+                        self.root / "distribution/watchtower/accounts")
+        shutil.copyfile(package.ROOT / "distribution/watchtower/setup-accounts.cmd",
+                        self.root / "distribution/watchtower/setup-accounts.cmd")
+        manifest = self.build()
+        self.assertIn("accounts/view.py", manifest["files"])
+        self.assertIn("accounts/tool_updates.py", manifest["files"])
+        self.assertIn("setup-accounts.cmd", manifest["files"])
+        self.assertNotIn("accounts/test_backend.py", manifest["files"])
+        self.assertNotIn("accounts/test_view.py", manifest["files"])
+        self.assertNotIn("accounts/test_tool_updates.py", manifest["files"])
+
+    def test_unexpected_accounts_state_is_rejected(self) -> None:
+        root = self.root / "distribution/watchtower/accounts"
+        shutil.copytree(package.ROOT / "distribution/watchtower/accounts", root)
+        (root / "auth.json").write_text('{"token":"private"}')
+        with self.assertRaisesRegex(ValueError, "Accounts package"):
             self.build()
         self.assertFalse(self.output.exists())
 

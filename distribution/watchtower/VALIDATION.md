@@ -1,65 +1,97 @@
-# Watchtower preview validation
+# Watchtower 0.1.0-preview.2 validation
 
-Validated on Windows x64 on 2026-09-27 for `0.1.0-preview.1`, based on
-Herdr `0.9.1` and bundled AgentRadio `0.7.1`. The final archive identifies its
-exact source commit and packaged file hashes in `BUILD-MANIFEST.json`.
+Windows x64 preview, based on Herdr 0.9.1 and pinned AgentRadio 0.7.1.
+Validated on 2026-09-28. The portable archive records its exact source revision,
+clean/dirty state, upstream revisions and each packaged file hash in
+`BUILD-MANIFEST.json`. Publish only an archive built with `-RequireCleanSource`.
 
-## Passed
+## Automated checks
 
-- Native release build with the `watchtower` feature; default upstream build
-  also passes `cargo check --locked --bin herdr`.
-- `cargo fmt --check`, `cargo clippy --all-targets --locked --features watchtower
-  -- -D warnings`, and `git diff --check`.
-- 43 focused Rust tests for product isolation, sessions, preview guards and
-  client reattachment after the final runtime changes.
-- 51 Python packaging, Radio, ConPTY, configuration-reference and translation
-  tests after the final launcher changes.
-- Broader Python maintenance tests passed after rerunning the portable-pty
-  group with Cargo on PATH; five platform-specific tests were skipped.
-- Bun maintenance tests: 50 passed and one platform-specific skip across the
-  initial run and the release-workflow group rerun with `just` on PATH.
-- Microsoft ConPTY package signature, pinned content hashes and portable
-  executable dependency checks during packaging.
+- Accounts: 256 tests passed; Results: 168; Teams: 95; Model Lab: 164.
+- Watchtower script discovery: 117 tests passed, including packaging, private
+  imports, provider launch adapters and release build flags. The standalone
+  private importer suite passed all 11 tests. ConPTY and UI architecture checks
+  also passed in the focused packaging run.
+- Rust binary suite: **3,245 passed, one failed, 10 ignored**. The single known
+  platform-specific failure is described below; this is not an all-green run.
+- Formatting and all-targets clippy with warnings denied passed for both the
+  Watchtower feature and upstream default build.
+- Native release compilation succeeded with the Watchtower product feature.
+  Release flags preserve static CRT, strip debug data and remap repository,
+  user and toolchain roots. The Windows PDB reference contains a filename only.
 
-The extracted portable archive passed the native two-instance smoke test:
+Tests use synthetic provider fixtures and do not make paid model requests.
+The four existing private pack formats were also checked read-only: all loaded
+under the generic loader with their original protocol/content hashes; no local
+pack was rewritten. Private source names, populations and dataset fingerprints
+are no longer embedded in application code or distributed examples.
 
-1. Fresh absolute data roots and named sessions use separate configuration,
-   sockets, workspaces and Radio ledgers, even when foreign routing is inherited.
-2. Role/icon metadata survives the API round trip and a real ConPTY shell
-   produces output.
-3. Configuration reload preserves role defaults and does not edit the other
-   instance's configuration.
-4. Stopping one server stops its private Radio supervisor/relay while the other
-   instance stays usable. Stopping the second leaves no owned processes.
+## Privacy and package boundary
 
-This test exposed a WindowsApps Python alias escaping the caller's process Job.
-The private launcher now resolves the real interpreter before execution; an
-additional native Job-ownership regression test passes.
+The candidate source tree and fork-specific published changes were audited for
+credentials, personal account domains, local user paths and private project
+identifiers. Gitleaks 8.30.1 produced seven source findings, all reviewed as
+false positives: six upstream code/variable expressions and one public OAuth
+client identifier verified against the pinned Radio source. No actual secret
+was identified by these checks. This is a scoped audit, not a guarantee that a
+scanner can detect every possible secret or an assertion about all historical
+upstream commits.
+
+Personal test fixtures were replaced with generic examples. Private benchmark
+content and its source metadata remain local, outside the repository. The
+published source retains public project ownership and upstream attribution.
+Git author metadata is separate from the packaged application.
+
+Packaging validates explicit runtime allowlists. Accounts, credentials,
+conversations, personal teams, local benchmark packs, run outputs and developer
+scratch files are excluded. Dependency notices and benchmark dataset attribution
+are retained. Source imports require an explicit local manifest and input hashes;
+private prompts are not published or silently imported into the default catalog.
+
+The rebuilt binary was scanned for the known private account/project/path
+markers found during preparation; none remained. Verify the final ZIP and its
+SHA-256 sidecar together before distribution.
+
+## Runtime checks and boundaries
+
+The packaged executable is exercised using two disposable absolute
+`WATCHTOWER_HOME` roots. The smoke verifies runtime/config/socket/Radio isolation,
+role metadata, real shell output, configuration reload and cleanup of only the
+owned test processes. It does not restart the user's running server or agents.
+
+The current-workspace filter was previously checked at fixed 146x80 geometry
+with one and 15 agents. Filter off/on medians were 1502.3/1602.8 microseconds for
+one agent and 1608.4/1623.1 for 15. These are local supporting measurements, not
+latency guarantees. Filtering precedes display-row formatting and does no
+network or filesystem work in the render loop.
+
+Results currently supports Codex structured records; other providers retain
+their terminal view. Same-provider account switching initially supports idle
+native Codex agents in Windows PowerShell. First-use login/trust screens can
+require interaction. Model Lab subset scores are local adapted evaluations,
+not official full-benchmark leaderboard scores. This archive is unsigned and
+experimental; it has no automatic updater.
 
 ## Known test limitation
 
-The broad Watchtower Rust binary suite ran 3,174 tests: 3,173 passed and one
-failed; seven other tests were skipped. The failure is
-`platform::windows::config_backup::tests::backup_preserves_legacy`: its ACL text
-assertion expects `D:(`, while this machine returns an inherited `D:AI(...)`
-descriptor. The identical test also fails in the previous unmodified engine
-build on this computer. No machine ACL or upstream test was changed to hide it.
-The full suite is therefore **not reported as green**.
+`platform::windows::config_backup::tests::backup_preserves_legacy` expects an
+ACL descriptor beginning `D:(`, while this Windows environment returns inherited
+`D:AI(...)` ACL text. The same assertion also failed on the unmodified upstream
+engine in the original validation. No ACL, fixture or test was changed to hide
+it. The broad Rust suite is therefore **not reported as green**.
 
-## Not covered by this preview validation
-
-Full interactive TUI visual review, live provider authentication and end-to-end
-agent-to-agent Radio delivery were not exercised. No provider agents were
-started. No existing Herdr server, settings, credentials or team state were
-imported or modified. Full Account Stats, team templates and review automation
-remain follow-up work, as described in the preview guide.
-
-Reproduce runtime checks against a complete extracted archive:
+## Reproduce
 
 ```powershell
+python -B -m unittest discover -s scripts -p 'test_watchtower_*.py'
+# Run each runtime suite in a separate Python process with the pinned UI dependencies.
+python -B -m unittest discover -s distribution/watchtower/accounts -p 'test_*.py'
+python -B -m unittest discover -s distribution/watchtower/results -p 'test_*.py'
+python -B -m unittest discover -s distribution/watchtower/teams -p 'test_*.py'
+python -B -m unittest discover -s distribution/watchtower/benchmarks -p 'test_*.py'
+pwsh -NoProfile -File scripts/watchtower_build_windows.ps1 -RequireCleanSource
 python -B scripts/watchtower_smoke_windows.py --exe <package>/watchtower.exe --report target/watchtower-smoke.json
 ```
 
-The helper uses temporary data roots, retains process handles and cleans only
-its own test processes and directories. A failed cleanup preserves its data
-root for diagnosis.
+The manual GitHub workflow performs the same checks with pinned Python/UI
+versions and uploads artifacts only. It does not publish releases automatically.

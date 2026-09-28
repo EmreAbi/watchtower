@@ -1,9 +1,10 @@
 use std::time::{Duration, Instant};
 
 use crate::api::schema::{
-    AgentPromptParams, AgentPromptWaitOptions, AgentReadParams, AgentRenameParams,
-    AgentSendKeysParams, AgentStartParams, AgentTarget, AgentWaitParams, EmptyParams, ErrorBody,
-    ErrorResponse, Method, PaneProcessInfoParams, PaneTarget, ReadFormat, ReadSource, Request,
+    AgentPromptParams, AgentPromptWaitOptions, AgentQuitIfIdleParams, AgentReadParams,
+    AgentRenameParams, AgentSendKeysParams, AgentStartParams, AgentTarget, AgentWaitParams,
+    EmptyParams, ErrorBody, ErrorResponse, Method, PaneProcessInfoParams, PaneTarget, ReadFormat,
+    ReadSource, Request,
 };
 
 const AGENT_START_POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -21,6 +22,7 @@ pub(super) fn run_agent_command(args: &[String]) -> std::io::Result<i32> {
         "read" => agent_read(&args[1..]),
         "send-keys" => agent_send_keys(&args[1..]),
         "prompt" => agent_prompt(&args[1..]),
+        "quit-if-idle" => agent_quit_if_idle(&args[1..]),
         "rename" => agent_rename(&args[1..]),
         "focus" => agent_focus(&args[1..]),
         "wait" => agent_wait(&args[1..]),
@@ -768,6 +770,77 @@ fn agent_rename(args: &[String]) -> std::io::Result<i32> {
     })?)
 }
 
+fn parse_quit_if_idle(args: &[String]) -> Result<AgentQuitIfIdleParams, &'static str> {
+    const USAGE: &str = "usage: herdr agent quit-if-idle <target> --terminal ID --agent-session-id UUID --state-seq N [--check]";
+    let args =
+        super::expand_equals_args(args, &["--terminal", "--agent-session-id", "--state-seq"]);
+    let Some(target) = args
+        .first()
+        .filter(|value| !value.is_empty() && !value.starts_with('-'))
+    else {
+        return Err(USAGE);
+    };
+    let (mut terminal, mut session, mut sequence, mut check_only) = (None, None, None, false);
+    let mut index = 1;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--check" if !check_only => {
+                check_only = true;
+                index += 1;
+            }
+            "--terminal" if terminal.is_none() => {
+                terminal = Some(
+                    args.get(index + 1)
+                        .filter(|value| !value.is_empty() && !value.starts_with('-'))
+                        .ok_or(USAGE)?
+                        .clone(),
+                );
+                index += 2;
+            }
+            "--agent-session-id" if session.is_none() => {
+                session = Some(
+                    args.get(index + 1)
+                        .filter(|value| !value.is_empty() && !value.starts_with('-'))
+                        .ok_or(USAGE)?
+                        .clone(),
+                );
+                index += 2;
+            }
+            "--state-seq" if sequence.is_none() => {
+                sequence = Some(
+                    args.get(index + 1)
+                        .ok_or(USAGE)?
+                        .parse::<u64>()
+                        .map_err(|_| USAGE)?,
+                );
+                index += 2;
+            }
+            _ => return Err(USAGE),
+        }
+    }
+    Ok(AgentQuitIfIdleParams {
+        target: target.clone(),
+        terminal_id: terminal.ok_or(USAGE)?,
+        session_id: session.ok_or(USAGE)?,
+        state_change_seq: sequence.ok_or(USAGE)?,
+        check_only,
+    })
+}
+
+fn agent_quit_if_idle(args: &[String]) -> std::io::Result<i32> {
+    let params = match parse_quit_if_idle(args) {
+        Ok(params) => params,
+        Err(message) => {
+            eprintln!("{message}");
+            return Ok(2);
+        }
+    };
+    super::print_response(&super::send_request(&Request {
+        id: "cli:agent:quit-if-idle".into(),
+        method: Method::AgentQuitIfIdle(params),
+    })?)
+}
+
 fn agent_prompt(args: &[String]) -> std::io::Result<i32> {
     let Some(target) = args.first() else {
         eprintln!(
@@ -929,6 +1002,9 @@ fn print_agent_help() {
     eprintln!("  herdr agent get <target>");
     eprintln!("  herdr agent read <target> [--source visible|recent|recent-unwrapped|detection] [--lines N] [--format text|ansi] [--ansi]");
     eprintln!("  herdr agent send-keys <target> <key> [key ...]");
+    eprintln!(
+        "  herdr agent quit-if-idle <target> --terminal ID --agent-session-id UUID --state-seq N [--check]"
+    );
     eprintln!("  herdr agent prompt <target> <text> [--wait] [--until STATUS]... [--timeout MS]");
     eprintln!("  herdr agent rename <target> <name>|--clear");
     eprintln!("  herdr agent focus <target>");
@@ -950,4 +1026,63 @@ fn parse_timeout(value: &str) -> Result<u64, i32> {
         eprintln!("{err}");
         2
     })
+}
+
+#[cfg(test)]
+mod quit_if_idle_tests {
+    use super::*;
+
+    #[test]
+    fn agent_quit_if_idle_cli_preserves_guards_and_check_only() {
+        let args = [
+            "w1:p1",
+            "--terminal=t1",
+            "--agent-session-id=s1",
+            "--state-seq=42",
+            "--check",
+        ]
+        .map(str::to_owned);
+        let params = parse_quit_if_idle(&args).unwrap();
+        assert_eq!(params.target, "w1:p1");
+        assert_eq!(params.terminal_id, "t1");
+        assert_eq!(params.session_id, "s1");
+        assert_eq!(params.state_change_seq, 42);
+        assert!(params.check_only);
+        for invalid in [
+            vec!["w1:p1"],
+            vec![
+                "w1:p1",
+                "--terminal",
+                "t1",
+                "--session",
+                "s1",
+                "--state-seq",
+                "42",
+            ],
+            vec![
+                "w1:p1",
+                "--terminal",
+                "t1",
+                "--agent-session-id",
+                "s1",
+                "--state-seq",
+                "-1",
+            ],
+            vec![
+                "w1:p1",
+                "--terminal",
+                "t1",
+                "--agent-session-id",
+                "s1",
+                "--state-seq",
+                "42",
+                "--force",
+            ],
+        ] {
+            assert!(parse_quit_if_idle(
+                &invalid.into_iter().map(str::to_owned).collect::<Vec<_>>()
+            )
+            .is_err());
+        }
+    }
 }

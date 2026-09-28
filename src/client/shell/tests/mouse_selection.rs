@@ -157,6 +157,43 @@ fn ctrl_click_without_a_link_replays_the_original_gesture() {
 }
 
 #[test]
+fn ctrl_click_file_link_requires_a_plugin_and_never_opens_on_the_client_host() {
+    for handled in [false, true] {
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+        state.set_snapshot(Box::new(snapshot()));
+        state.set_pane_surface(surface());
+        state.compose(106, 20).expect("pane frame");
+        let pane = state.hits.panes[0].clone();
+        let down = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: pane.inner_rect.x + 2,
+            row: pane.inner_rect.y + 1,
+            modifiers: KeyModifiers::CONTROL,
+        };
+        let activate = state.handle_raw_events(vec![RawInputEvent::Mouse(down)]);
+        let [ClientShellAction::Endpoint { request, .. }] = &activate.actions[..] else {
+            panic!("expected link activation request");
+        };
+        let (_, actions) = state.handle_endpoint_result(
+            "boot-1",
+            &request.id,
+            Ok(crate::api::schema::ResponseResult::PaneLinkActivated {
+                url: Some("file:///C:/Images/sunset.png".to_owned()),
+                handled,
+            }),
+        );
+        if handled {
+            assert!(actions.is_empty(), "the plugin owns file activation");
+        } else {
+            assert!(matches!(
+                &actions[..],
+                [ClientShellAction::ReplayMouse(events)] if events == &vec![down]
+            ));
+        }
+    }
+}
+
+#[test]
 fn pane_split_drag_uses_projected_handle_and_stable_tab_path() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));

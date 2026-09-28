@@ -24,6 +24,7 @@ pub(crate) struct ClientShellConfig {
     pub(super) spaces: SpacesSidebarConfig,
     pub(super) agents: crate::config::AgentsSidebarConfig,
     pub(super) agent_panel_sort: crate::config::AgentPanelSortConfig,
+    pub(super) agent_current_workspace_only: bool,
     pub(super) status_indicators: crate::config::StatusIndicatorStyle,
     pub(super) sound_enabled: bool,
     pub(super) toast_delivery: crate::config::ToastDelivery,
@@ -89,8 +90,12 @@ pub(super) struct ShellHitMap {
     pub(super) workspace_scrollbar: Rect,
     pub(super) workspace_scroll_metrics: Option<crate::pane::ScrollMetrics>,
     pub(super) workspace_max_scroll: usize,
+    pub(super) spaces_grouping_toggle: Rect,
+    pub(super) space_groups: Vec<(Rect, ClientEndpointId, String)>,
     pub(super) tabs: Vec<(Rect, String)>,
     pub(super) panes: Vec<PaneHit>,
+    #[cfg(feature = "watchtower")]
+    pub(super) results_buttons: Vec<(Rect, String)>,
     pub(super) popup: Option<PaneHit>,
     pub(super) pane_splits: Vec<PaneSplitHit>,
     pub(super) agents: Vec<(Rect, String)>,
@@ -290,6 +295,16 @@ pub(super) enum ClientShellOverlayKind {
 
 #[derive(Debug)]
 pub(super) enum ClientRenameTarget {
+    #[cfg(feature = "watchtower")]
+    NewSpaceGroup {
+        endpoint_id: ClientEndpointId,
+        workspace: Option<ClientSpaceWorkspaceTarget>,
+    },
+    #[cfg(feature = "watchtower")]
+    SpaceGroup {
+        endpoint_id: ClientEndpointId,
+        group_id: String,
+    },
     NewWorkspace {
         source_workspace_id: Option<String>,
         cwd: Option<String>,
@@ -508,6 +523,23 @@ pub(super) struct ClientWorktreeRemoveOverlay {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ClientContextMenuAction {
+    #[cfg(feature = "watchtower")]
+    SetSpacesGrouped(bool),
+    #[cfg(feature = "watchtower")]
+    NewSpaceGroup,
+    #[cfg(feature = "watchtower")]
+    MoveToSpaceGroup,
+    #[cfg(feature = "watchtower")]
+    AssignSpaceGroup(Option<usize>),
+    #[cfg(feature = "watchtower")]
+    RenameSpaceGroup,
+    #[cfg(feature = "watchtower")]
+    MoveSpaceGroup(isize),
+    #[cfg(feature = "watchtower")]
+    RemoveSpaceGroup,
+    SetAgentSort(crate::config::AgentPanelSortConfig),
+    #[cfg(feature = "watchtower")]
+    SetAgentWorkspaceFilter(bool),
     Rename,
     Close,
     NewWorktree,
@@ -525,9 +557,40 @@ pub(super) enum ClientContextMenuAction {
     ClosePane,
 }
 
+#[cfg(feature = "watchtower")]
+#[derive(Clone, Debug)]
+pub(super) struct ClientSpaceWorkspaceTarget {
+    pub(super) endpoint_id: ClientEndpointId,
+    pub(super) workspace_id: String,
+    pub(super) boot_id: String,
+    pub(super) generation: Option<u64>,
+}
+
 #[derive(Debug)]
 pub(super) enum ClientContextMenuTarget {
+    #[cfg(feature = "watchtower")]
+    SpacesGrouping {
+        endpoint_id: ClientEndpointId,
+        grouped: bool,
+    },
+    #[cfg(feature = "watchtower")]
+    SpaceGroup {
+        endpoint_id: ClientEndpointId,
+        group_id: String,
+    },
+    #[cfg(feature = "watchtower")]
+    WorkspaceGroups {
+        workspace: ClientSpaceWorkspaceTarget,
+        groups: Vec<(String, String)>,
+    },
+    AgentPanel {
+        sort: crate::config::AgentPanelSortConfig,
+        current_workspace_only: bool,
+        sort_locked: bool,
+    },
     Workspace {
+        #[cfg(feature = "watchtower")]
+        scope: ClientSpaceWorkspaceTarget,
         workspace_id: String,
         is_git: bool,
         is_linked_worktree: bool,
@@ -556,7 +619,7 @@ pub(super) struct ClientContextMenuOverlay {
 }
 
 pub(super) struct ClientContextMenuItem {
-    pub(super) label: &'static str,
+    pub(super) label: String,
     pub(super) action: ClientContextMenuAction,
 }
 
@@ -985,6 +1048,9 @@ impl ClientShellState {
         if let Some(sort) = preferences.agent_panel_sort {
             config.agent_panel_sort = sort;
         }
+        if let Some(enabled) = preferences.agent_current_workspace_only {
+            config.agent_current_workspace_only = enabled;
+        }
         let mut remote_collapsed_groups = HashMap::<ClientEndpointId, HashSet<String>>::new();
         for saved in preferences.remote_collapsed_groups {
             let Ok(profile_id) = crate::client::endpoint::ProfileId::parse(saved.profile_id) else {
@@ -1148,6 +1214,25 @@ impl ClientShellState {
         snapshot: &ClientShellSnapshot,
     ) -> Vec<WorkspaceEntry> {
         let empty_collapsed_groups = HashSet::new();
+        #[cfg(feature = "watchtower")]
+        if !self.mobile_layout_active()
+            && !self.sidebar_collapsed
+            && self.config.preferences.space_groups.grouped
+        {
+            return super::space_groups::rows(
+                snapshot,
+                self.collapsed_groups_for_endpoint(&self.active_endpoint_id)
+                    .unwrap_or(&empty_collapsed_groups),
+                &self.active_endpoint_id,
+                &self.config.preferences.space_groups,
+            )
+            .into_iter()
+            .filter_map(|row| match row {
+                super::space_groups::SpaceRow::Workspace(entry) => Some(entry),
+                _ => None,
+            })
+            .collect();
+        }
         if self.mobile_layout_active() {
             render::workspace_entries(snapshot, &empty_collapsed_groups)
         } else {
@@ -1169,6 +1254,25 @@ impl ClientShellState {
             return;
         }
         let target = self.snapshot.as_deref().and_then(|snapshot| {
+            #[cfg(feature = "watchtower")]
+            if !self.mobile_layout_active()
+                && !self.sidebar_collapsed
+                && self.config.preferences.space_groups.grouped
+            {
+                let empty = HashSet::new();
+                return super::space_groups::rows(
+                    snapshot,
+                    self.collapsed_groups_for_endpoint(&self.active_endpoint_id)
+                        .unwrap_or(&empty),
+                    &self.active_endpoint_id,
+                    &self.config.preferences.space_groups,
+                )
+                .iter()
+                .position(|row| {
+                    matches!(row, super::space_groups::SpaceRow::Workspace(entry)
+                        if snapshot.workspaces[entry.index].workspace_id == workspace_id)
+                });
+            }
             self.navigation_workspace_entries(snapshot)
                 .iter()
                 .position(|entry| snapshot.workspaces[entry.index].workspace_id == workspace_id)
@@ -1388,6 +1492,9 @@ impl ClientShellState {
             != snapshot.focused_workspace_id.as_deref()
         {
             self.reveal_focused_workspace = true;
+            if self.config.agent_current_workspace_only {
+                self.agent_scroll = 0;
+            }
         }
         if tab_layout_changed
             || self

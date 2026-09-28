@@ -1,0 +1,20 @@
+id = "watchtower-teams"
+name = "Watchtower Teams"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Quick Task, Research and Development workspace templates"
+platforms = ["windows"]
+
+[[panes]]
+id = "center"
+title = "Teams"
+placement = "popup"
+width = "94%"
+height = "94%"
+command = ["cmd", "/d", "/c", "bin\\center.cmd"]
+
+[[panes]]
+id = "launch-agent"
+title = "Team agent"
+placement = "tab"
+command = ["cmd", "/d", "/c", "bin\\center.cmd", "--launch"]

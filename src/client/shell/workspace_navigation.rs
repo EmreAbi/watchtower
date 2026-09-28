@@ -90,7 +90,23 @@ impl ClientShellState {
                     self.collapsed_groups_for_endpoint(&endpoint.endpoint_id)
                         .unwrap_or(&empty_collapsed_groups)
                 };
-                render::workspace_entries(snapshot, collapsed_groups)
+                if mobile && surface_available {
+                    render::workspace_entries(snapshot, collapsed_groups)
+                } else {
+                    space_groups::rows(
+                        snapshot,
+                        collapsed_groups,
+                        &endpoint.endpoint_id,
+                        &self.config.preferences.space_groups,
+                    )
+                    .into_iter()
+                    .filter_map(|row| match row {
+                        space_groups::SpaceRow::Workspace(entry) => Some(entry),
+                        space_groups::SpaceRow::Group { .. }
+                        | space_groups::SpaceRow::Ungrouped { .. } => None,
+                    })
+                    .collect()
+                }
             };
             for entry in entries {
                 targets.push(WorkspaceNavigationTarget {

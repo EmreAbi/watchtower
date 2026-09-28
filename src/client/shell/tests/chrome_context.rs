@@ -1,4 +1,5 @@
 use super::*;
+use crate::client::shell::global_menu::{global_menu_items, ClientGlobalMenuAction};
 
 #[test]
 fn tab_overflow_controls_scroll_the_client_owned_tab_bar() {
@@ -419,12 +420,381 @@ fn global_menu_opens_from_sidebar_and_routes_client_actions() {
     assert!(help.actions.is_empty());
     assert!(matches!(state.overlay, Some(ClientShellOverlay::Help(_))));
 
+    let detach_index = global_menu_items(state.snapshot.as_deref().unwrap())
+        .iter()
+        .position(|(_, action)| {
+            *action == ClientGlobalMenuAction::Binding(crate::input::KeybindAction::Detach)
+        })
+        .expect("detach menu action");
     state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
-        highlighted: 3,
+        highlighted: detach_index,
     }));
     let detach = state.handle_input_bytes(b"\r");
     assert!(detach.detach);
     assert!(state.overlay.is_none());
+}
+
+#[cfg(feature = "watchtower")]
+#[test]
+fn results_menu_opens_for_the_current_pane_and_reopens_after_close() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_endpoint_methods(Some(
+        crate::server::client_commands::supported_client_shell_method_names()
+            .iter()
+            .map(|method| (*method).to_owned())
+            .collect(),
+    ));
+    for cycle in 0..2 {
+        let source_pane = format!("pane_{}", cycle + 1);
+        let mut next = snapshot();
+        next.revision += cycle;
+        next.focused_pane_id = Some(source_pane.clone());
+        next.panes[0].pane_id = source_pane.clone();
+        state.set_snapshot(Box::new(next));
+        let mut source_surface = surface();
+        source_surface.projection_revision += cycle;
+        source_surface.surface_revision += cycle * 3;
+        source_surface.panes[0].pane_id = source_pane.clone();
+        state.set_pane_surface(source_surface.clone());
+        state.toggle_global_menu();
+        let frame = state.compose(106, 30).expect("Results menu");
+        assert!(frame_rows(&frame).join("\n").contains("results"));
+        let index = global_menu_items(state.snapshot.as_deref().unwrap())
+            .iter()
+            .position(|(_, action)| *action == ClientGlobalMenuAction::Results)
+            .expect("Results action");
+        let row = state.hits.global_menu_rows[index].0;
+        let opened = state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: row.x,
+            row: row.y,
+            modifiers: KeyModifiers::empty(),
+        })]);
+        let [ClientShellAction::Endpoint { request, .. }] = opened.actions.as_slice() else {
+            panic!("Results should use the public endpoint API");
+        };
+        let crate::api::schema::Method::PluginPaneOpen(params) = &request.method else {
+            panic!("expected plugin.pane.open");
+        };
+        assert_eq!(params.plugin_id, "watchtower-results");
+        assert_eq!(params.entrypoint, "center");
+        assert!(params.target_pane_id.is_none());
+        assert!(params.workspace_id.is_none());
+        assert!(params.direction.is_none());
+        assert_eq!(
+            params.env.get("WATCHTOWER_RESULTS_PANE"),
+            Some(&source_pane)
+        );
+        assert_eq!(
+            params.env.len(),
+            1,
+            "pass pane identity, never account/session secrets"
+        );
+        assert_eq!(
+            params.placement,
+            Some(crate::api::schema::PluginPanePlacement::Popup)
+        );
+        assert!(state.popup_pending);
+        assert!(state.overlay.is_none());
+
+        let (_, actions) = state.handle_endpoint_result(
+            "boot-1",
+            &request.id,
+            Ok(crate::api::schema::ResponseResult::Ok {}),
+        );
+        assert!(actions.is_empty());
+        let mut popup = surface_with_popup();
+        popup.projection_revision = source_surface.projection_revision;
+        popup.surface_revision = source_surface.surface_revision + 1;
+        popup.panes[0].pane_id = source_pane.clone();
+        popup.popup.as_mut().unwrap().title = "Results".into();
+        state.set_pane_surface(popup);
+        state.compose(106, 30).expect("Results popup");
+        assert!(state.hits.popup.is_some());
+        assert!(!state.popup_pending);
+
+        source_surface.surface_revision += 2;
+        state.set_pane_surface(source_surface);
+        state.compose(106, 30).expect("closed Results popup");
+        assert!(state.popup_terminal_id.is_none());
+        assert!(!state.popup_pending);
+        assert!(state.popup_pending_deadline.is_none());
+        assert!(state.endpoint_is_online(&state.active_endpoint_id));
+    }
+}
+
+#[cfg(feature = "watchtower")]
+#[test]
+fn results_menu_without_a_pane_or_supported_endpoint_keeps_agents_connected() {
+    for has_pane in [false, true] {
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+        let mut next = snapshot();
+        if !has_pane {
+            next.focused_pane_id = None;
+        }
+        state.set_snapshot(Box::new(next));
+        state.set_endpoint_methods(Some(vec![]));
+        let index = global_menu_items(state.snapshot.as_deref().unwrap())
+            .iter()
+            .position(|(_, action)| *action == ClientGlobalMenuAction::Results)
+            .unwrap();
+        let mut outcome = ClientShellInput::default();
+        state.activate_global_menu_item(index, &mut outcome);
+        assert!(outcome.actions.is_empty());
+        assert!(!state.popup_pending);
+        assert!(state.endpoint_is_online(&state.active_endpoint_id));
+        assert_eq!(state.visible_endpoint_notice.is_some(), has_pane);
+    }
+}
+
+#[cfg(feature = "watchtower")]
+#[test]
+fn preparation_menus_open_only_the_chooser_through_the_public_api() {
+    for (action, plugin_id) in [
+        (ClientGlobalMenuAction::Teams, "watchtower-teams"),
+        (ClientGlobalMenuAction::ModelLab, "watchtower-benchmarks"),
+    ] {
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+        state.set_snapshot(Box::new(snapshot()));
+        state.set_endpoint_methods(Some(
+            crate::server::client_commands::supported_client_shell_method_names()
+                .iter()
+                .map(|method| (*method).to_owned())
+                .collect(),
+        ));
+        let index = global_menu_items(state.snapshot.as_deref().unwrap())
+            .iter()
+            .position(|(_, candidate)| *candidate == action)
+            .unwrap();
+        let mut outcome = ClientShellInput::default();
+        state.activate_global_menu_item(index, &mut outcome);
+        let [ClientShellAction::Endpoint { request, .. }] = outcome.actions.as_slice() else {
+            panic!("Menu should only open the chooser");
+        };
+        let crate::api::schema::Method::PluginPaneOpen(params) = &request.method else {
+            panic!("expected plugin.pane.open");
+        };
+        assert_eq!(params.plugin_id, plugin_id);
+        assert_eq!(params.entrypoint, "center");
+        assert!(params.target_pane_id.is_none());
+        assert!(params.workspace_id.is_none());
+        assert!(params.env.is_empty());
+        assert_eq!(
+            params.placement,
+            Some(crate::api::schema::PluginPanePlacement::Popup)
+        );
+        let mut duplicate = ClientShellInput::default();
+        state.activate_global_menu_item(index, &mut duplicate);
+        assert!(
+            duplicate.actions.is_empty(),
+            "pending popup must not open twice"
+        );
+    }
+}
+
+#[cfg(feature = "watchtower")]
+#[test]
+fn accounts_menu_opens_public_plugin_popup_and_reports_missing_plugin() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.set_endpoint_methods(Some(
+        crate::server::client_commands::supported_client_shell_method_names()
+            .iter()
+            .map(|method| (*method).to_owned())
+            .collect(),
+    ));
+    state.toggle_global_menu();
+    let frame = state.compose(106, 30).expect("accounts menu");
+    assert!(frame_rows(&frame).join("\n").contains("accounts"));
+    let index = global_menu_items(state.snapshot.as_deref().unwrap())
+        .iter()
+        .position(|(_, action)| *action == ClientGlobalMenuAction::Accounts)
+        .unwrap();
+    let accounts = state.hits.global_menu_rows[index].0;
+    let opened = state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: accounts.x,
+        row: accounts.y,
+        modifiers: KeyModifiers::empty(),
+    })]);
+    let [ClientShellAction::Endpoint { request, .. }] = opened.actions.as_slice() else {
+        panic!("one public API action expected");
+    };
+    let crate::api::schema::Method::PluginPaneOpen(params) = &request.method else {
+        panic!("expected plugin.pane.open");
+    };
+    assert_eq!(params.plugin_id, "watchtower-accounts");
+    assert_eq!(params.entrypoint, "center");
+    assert_eq!(
+        params.placement,
+        Some(crate::api::schema::PluginPanePlacement::Popup)
+    );
+    assert_eq!(
+        params.width,
+        Some(crate::popup_size::PopupSize::Percent(90))
+    );
+    assert_eq!(
+        params.height,
+        Some(crate::popup_size::PopupSize::Percent(90))
+    );
+    assert!(params.env.is_empty());
+    assert!(state.popup_pending);
+    assert!(state.overlay.is_none());
+
+    let (repaint, actions) = state.handle_endpoint_result(
+        "boot-1",
+        &request.id,
+        Err(ClientShellEndpointError {
+            code: Some("plugin_not_found".into()),
+            message: "Accounts plugin is not installed on this server".into(),
+        }),
+    );
+    assert!(repaint);
+    assert!(actions.is_empty());
+    assert!(!state.popup_pending);
+    assert!(state.endpoint_is_online(&state.active_endpoint_id));
+    assert!(state
+        .visible_endpoint_notice
+        .as_ref()
+        .unwrap()
+        .body
+        .contains("not installed"));
+}
+
+#[cfg(feature = "watchtower")]
+#[test]
+fn accounts_menu_reopens_after_popup_close_using_server_advertised_methods() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.set_endpoint_methods(Some(
+        crate::server::client_commands::supported_client_shell_method_names()
+            .iter()
+            .map(|method| (*method).to_owned())
+            .collect(),
+    ));
+    let mut previous_request_id = None;
+
+    for cycle in 0..2 {
+        assert!(!state.popup_pending);
+        assert!(state.popup_pending_deadline.is_none());
+        assert!(state.popup_terminal_id.is_none());
+        state.compose(106, 30).expect("shell before Accounts");
+        let launcher = state.hits.global_launcher;
+        let open_menu = state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: launcher.x,
+            row: launcher.y,
+            modifiers: KeyModifiers::empty(),
+        })]);
+        assert!(open_menu.repaint);
+        assert!(open_menu.actions.is_empty());
+        state.compose(106, 30).expect("Accounts menu");
+        let index = global_menu_items(state.snapshot.as_deref().unwrap())
+            .iter()
+            .position(|(_, action)| *action == ClientGlobalMenuAction::Accounts)
+            .expect("Accounts action");
+        let accounts = state.hits.global_menu_rows[index].0;
+        let opened = state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: accounts.x,
+            row: accounts.y,
+            modifiers: KeyModifiers::empty(),
+        })]);
+        let [ClientShellAction::Endpoint { request, .. }] = opened.actions.as_slice() else {
+            panic!("advertised server must accept an Accounts popup request");
+        };
+        assert!(matches!(
+            &request.method,
+            crate::api::schema::Method::PluginPaneOpen(params)
+                if params.plugin_id == "watchtower-accounts"
+                    && params.entrypoint == "center"
+                    && params.placement == Some(crate::api::schema::PluginPanePlacement::Popup)
+        ));
+        assert_ne!(previous_request_id.as_ref(), Some(&request.id));
+        previous_request_id = Some(request.id.clone());
+        assert!(state.popup_pending);
+        assert!(state.popup_pending_deadline.is_none());
+
+        let terminal_id = format!("accounts-popup-{cycle}");
+        let (_, actions) = state.handle_endpoint_result(
+            "boot-1",
+            &request.id,
+            Ok(crate::api::schema::ResponseResult::Ok {}),
+        );
+        assert!(actions.is_empty());
+        assert!(state.popup_pending);
+        assert!(state.popup_pending_deadline.is_some());
+
+        let mut popup_surface = surface_with_popup();
+        popup_surface.surface_revision = 2 + cycle * 2;
+        let popup = popup_surface.popup.as_mut().expect("popup surface");
+        popup.terminal_id = terminal_id.clone();
+        popup.title = "Accounts".into();
+        state.set_pane_surface(popup_surface);
+        let frame = state.compose(106, 30).expect("visible Accounts popup");
+        assert!(frame_rows(&frame).join("\n").contains("Accounts"));
+        assert!(state.hits.popup.is_some());
+        assert!(!state.popup_pending);
+        assert!(state.popup_pending_deadline.is_none());
+        assert!(matches!(
+            state.handle_input_bytes(b"\x1b").requests.as_slice(),
+            [ClientMessage::ClientShellPopupInput { terminal_id: target, .. }]
+                if target == &terminal_id
+        ));
+
+        // The popup process exits; the next server surface removes only it.
+        let mut closed_surface = surface();
+        closed_surface.surface_revision = 3 + cycle * 2;
+        state.set_pane_surface(closed_surface);
+        state.compose(106, 30).expect("shell after Accounts close");
+        assert!(state.hits.popup.is_none());
+        assert!(state.popup_terminal_id.is_none());
+        assert!(!state.popup_pending);
+        assert!(state.popup_pending_deadline.is_none());
+        assert!(state.endpoint_is_online(&state.active_endpoint_id));
+        assert_eq!(
+            state
+                .snapshot
+                .as_deref()
+                .unwrap()
+                .focused_pane_id
+                .as_deref(),
+            Some("pane_1")
+        );
+    }
+}
+
+#[cfg(feature = "watchtower")]
+#[test]
+fn accounts_menu_unsupported_server_leaves_agents_connected() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_endpoint_methods(Some(
+        crate::server::client_commands::supported_client_shell_method_names()
+            .iter()
+            .filter(|method| **method != "plugin.pane.open")
+            .map(|method| (*method).to_owned())
+            .collect(),
+    ));
+    let index = global_menu_items(state.snapshot.as_deref().unwrap())
+        .iter()
+        .position(|(_, action)| *action == ClientGlobalMenuAction::Accounts)
+        .unwrap();
+    state.overlay = Some(ClientShellOverlay::GlobalMenu(ClientGlobalMenuOverlay {
+        highlighted: index,
+    }));
+    let outcome = state.handle_input_bytes(b"\r");
+    assert!(outcome.actions.is_empty());
+    assert!(!state.popup_pending);
+    assert!(state.endpoint_is_online(&state.active_endpoint_id));
+    assert!(state
+        .visible_endpoint_notice
+        .as_ref()
+        .unwrap()
+        .body
+        .contains("plugin.pane.open"));
 }
 
 #[test]

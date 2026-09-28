@@ -4,82 +4,341 @@ impl ClientContextMenuOverlay {
     pub(super) fn items(&self) -> Vec<ClientContextMenuItem> {
         use ClientContextMenuAction as Action;
 
-        let item = |label, action| ClientContextMenuItem { label, action };
-        match &self.target {
-            ClientContextMenuTarget::Workspace { is_git: false, .. } => {
-                vec![item("Rename", Action::Rename), item("Close", Action::Close)]
-            }
-            ClientContextMenuTarget::Workspace {
-                is_linked_worktree: false,
-                has_worktree_children: false,
-                ..
-            } => vec![
-                item("Rename", Action::Rename),
-                item("Close", Action::Close),
-                item("New worktree", Action::NewWorktree),
-                item("Open worktree...", Action::OpenWorktree),
-            ],
-            ClientContextMenuTarget::Workspace {
-                is_linked_worktree: true,
-                ..
-            } => vec![
-                item("Rename", Action::Rename),
-                item("Close", Action::Close),
-                item("Delete worktree checkout...", Action::RemoveWorktree),
-            ],
-            ClientContextMenuTarget::Workspace {
-                has_worktree_children: true,
-                collapsed,
-                ..
-            } => vec![
-                item("Rename", Action::Rename),
-                item("Close group", Action::Close),
-                item("New worktree", Action::NewWorktree),
-                item("Open worktree...", Action::OpenWorktree),
-                item(
-                    if *collapsed { "Expand" } else { "Collapse" },
-                    Action::ToggleGroup,
-                ),
-            ],
-            ClientContextMenuTarget::Tab { .. } => vec![
-                item("New tab", Action::NewTab),
-                item("Rename", Action::Rename),
-                item("Close", Action::Close),
-            ],
-            ClientContextMenuTarget::Pane {
-                source_pane_id,
-                has_manual_label,
-                right_click_passthrough,
-                ..
-            } => {
-                let mut items = vec![item("Rename pane", Action::RenamePane)];
-                if *has_manual_label {
-                    items.push(item("Clear pane name", Action::ClearPaneName));
-                }
-                if source_pane_id.is_some() {
-                    items.push(item("Swap with focused pane", Action::SwapWithFocusedPane));
-                }
-                items.extend([
-                    item("Split right", Action::SplitRight),
-                    item("Split down", Action::SplitDown),
-                    item("Zoom", Action::Zoom),
+        let item = |label: &str, action| ClientContextMenuItem {
+            label: label.to_owned(),
+            action,
+        };
+        let items =
+            match &self.target {
+                #[cfg(feature = "watchtower")]
+                ClientContextMenuTarget::SpacesGrouping { grouped, .. } => vec![
                     item(
-                        if *right_click_passthrough {
-                            "Use Herdr right-click menu"
+                        if *grouped {
+                            "  Flat list"
                         } else {
-                            "Send right-clicks to pane"
+                            "✓ Flat list"
                         },
-                        Action::ToggleRightClickPassthrough,
+                        Action::SetSpacesGrouped(false),
                     ),
-                    item("Close pane", Action::ClosePane),
-                ]);
-                items
-            }
+                    item(
+                        if *grouped { "✓ Groups" } else { "  Groups" },
+                        Action::SetSpacesGrouped(true),
+                    ),
+                    item("New group...", Action::NewSpaceGroup),
+                ],
+                #[cfg(feature = "watchtower")]
+                ClientContextMenuTarget::SpaceGroup { .. } => vec![
+                    item("Rename group...", Action::RenameSpaceGroup),
+                    item("Move up", Action::MoveSpaceGroup(-1)),
+                    item("Move down", Action::MoveSpaceGroup(1)),
+                    item("Remove group", Action::RemoveSpaceGroup),
+                ],
+                #[cfg(feature = "watchtower")]
+                ClientContextMenuTarget::WorkspaceGroups { groups, .. } => {
+                    let mut items = vec![
+                        item("Ungrouped", Action::AssignSpaceGroup(None)),
+                        item("New group...", Action::NewSpaceGroup),
+                    ];
+                    items.extend(groups.iter().enumerate().map(|(index, (_, name))| {
+                        item(name, Action::AssignSpaceGroup(Some(index)))
+                    }));
+                    items
+                }
+                ClientContextMenuTarget::AgentPanel {
+                    sort,
+                    current_workspace_only,
+                    sort_locked,
+                } => {
+                    use crate::config::AgentPanelSortConfig as Sort;
+                    let choices = [
+                        (Sort::Spaces, "  By workspace", "✓ By workspace"),
+                        (
+                            Sort::Priority,
+                            "  Needs attention first",
+                            "✓ Needs attention first",
+                        ),
+                        (Sort::Role, "  By role", "✓ By role"),
+                        (Sort::Recent, "  Recently changed", "✓ Recently changed"),
+                        (Sort::Name, "  Name (A–Z)", "✓ Name (A–Z)"),
+                    ]
+                    .into_iter()
+                    .map(|(value, label, selected)| {
+                        item(
+                            if value == *sort { selected } else { label },
+                            Action::SetAgentSort(value),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                    #[cfg(feature = "watchtower")]
+                    {
+                        let mut choices = if *sort_locked { Vec::new() } else { choices };
+                        choices.push(item(
+                            if *current_workspace_only {
+                                "✓ Current workspace only"
+                            } else {
+                                "  Current workspace only"
+                            },
+                            Action::SetAgentWorkspaceFilter(!current_workspace_only),
+                        ));
+                        choices
+                    }
+                    #[cfg(not(feature = "watchtower"))]
+                    {
+                        let _ = (current_workspace_only, sort_locked);
+                        choices
+                    }
+                }
+                ClientContextMenuTarget::Workspace { is_git: false, .. } => {
+                    vec![item("Rename", Action::Rename), item("Close", Action::Close)]
+                }
+                ClientContextMenuTarget::Workspace {
+                    is_linked_worktree: false,
+                    has_worktree_children: false,
+                    ..
+                } => vec![
+                    item("Rename", Action::Rename),
+                    item("Close", Action::Close),
+                    item("New worktree", Action::NewWorktree),
+                    item("Open worktree...", Action::OpenWorktree),
+                ],
+                ClientContextMenuTarget::Workspace {
+                    is_linked_worktree: true,
+                    ..
+                } => vec![
+                    item("Rename", Action::Rename),
+                    item("Close", Action::Close),
+                    item("Delete worktree checkout...", Action::RemoveWorktree),
+                ],
+                ClientContextMenuTarget::Workspace {
+                    has_worktree_children: true,
+                    collapsed,
+                    ..
+                } => vec![
+                    item("Rename", Action::Rename),
+                    item("Close group", Action::Close),
+                    item("New worktree", Action::NewWorktree),
+                    item("Open worktree...", Action::OpenWorktree),
+                    item(
+                        if *collapsed { "Expand" } else { "Collapse" },
+                        Action::ToggleGroup,
+                    ),
+                ],
+                ClientContextMenuTarget::Tab { .. } => vec![
+                    item("New tab", Action::NewTab),
+                    item("Rename", Action::Rename),
+                    item("Close", Action::Close),
+                ],
+                ClientContextMenuTarget::Pane {
+                    source_pane_id,
+                    has_manual_label,
+                    right_click_passthrough,
+                    ..
+                } => {
+                    let mut items = vec![item("Rename pane", Action::RenamePane)];
+                    if *has_manual_label {
+                        items.push(item("Clear pane name", Action::ClearPaneName));
+                    }
+                    if source_pane_id.is_some() {
+                        items.push(item("Swap with focused pane", Action::SwapWithFocusedPane));
+                    }
+                    items.extend([
+                        item("Split right", Action::SplitRight),
+                        item("Split down", Action::SplitDown),
+                        item("Zoom", Action::Zoom),
+                        item(
+                            if *right_click_passthrough {
+                                "Use Herdr right-click menu"
+                            } else {
+                                "Send right-clicks to pane"
+                            },
+                            Action::ToggleRightClickPassthrough,
+                        ),
+                        item("Close pane", Action::ClosePane),
+                    ]);
+                    items
+                }
+            };
+        #[cfg(feature = "watchtower")]
+        let mut items = items;
+        #[cfg(feature = "watchtower")]
+        if matches!(self.target, ClientContextMenuTarget::Workspace { .. }) {
+            items.push(item("Move to group...", Action::MoveToSpaceGroup));
         }
+        items
     }
 }
 
 impl ClientShellState {
+    #[cfg(feature = "watchtower")]
+    pub(super) fn open_spaces_grouping_menu(&mut self, x: u16, y: u16) {
+        self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
+            target: ClientContextMenuTarget::SpacesGrouping {
+                endpoint_id: self.active_endpoint_id.clone(),
+                grouped: self.config.preferences.space_groups.grouped,
+            },
+            x,
+            y,
+            highlighted: usize::from(self.config.preferences.space_groups.grouped),
+        }));
+    }
+
+    #[cfg(feature = "watchtower")]
+    pub(super) fn open_space_group_context_menu(
+        &mut self,
+        endpoint_id: ClientEndpointId,
+        group_id: String,
+        x: u16,
+        y: u16,
+    ) {
+        if !self
+            .endpoints
+            .iter()
+            .any(|endpoint| endpoint.endpoint_id == endpoint_id)
+            || !self
+                .config
+                .preferences
+                .space_groups
+                .groups
+                .iter()
+                .any(|group| group.endpoint == endpoint_id.storage_key() && group.id == group_id)
+        {
+            return;
+        }
+        self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
+            target: ClientContextMenuTarget::SpaceGroup {
+                endpoint_id,
+                group_id,
+            },
+            x,
+            y,
+            highlighted: 0,
+        }));
+    }
+
+    #[cfg(feature = "watchtower")]
+    pub(super) fn toggle_space_group(
+        &mut self,
+        endpoint_id: ClientEndpointId,
+        group_id: String,
+        outcome: &mut ClientShellInput,
+    ) {
+        if !self
+            .endpoints
+            .iter()
+            .any(|endpoint| endpoint.endpoint_id == endpoint_id)
+        {
+            self.space_group_error("This endpoint is no longer available.", outcome);
+            return;
+        }
+        let result = self
+            .config
+            .preferences
+            .space_groups
+            .toggle(&endpoint_id.storage_key(), &group_id);
+        self.finish_space_group_change(result, outcome);
+    }
+
+    #[cfg(feature = "watchtower")]
+    pub(super) fn space_workspace_family(
+        &self,
+        target: &ClientSpaceWorkspaceTarget,
+    ) -> Option<Vec<String>> {
+        // Runtime IDs can be reused after reconnect. Never assign against a newer session.
+        if target.endpoint_id != self.active_endpoint_id
+            || target.generation != self.active_snapshot_generation
+        {
+            return None;
+        }
+        let snapshot = self.snapshot.as_deref()?;
+        if snapshot.boot_id != target.boot_id
+            || !snapshot
+                .workspaces
+                .iter()
+                .any(|workspace| workspace.workspace_id == target.workspace_id)
+        {
+            return None;
+        }
+        Some(super::space_groups::family_workspace_ids(
+            snapshot,
+            &target.workspace_id,
+        ))
+    }
+
+    #[cfg(feature = "watchtower")]
+    pub(super) fn space_group_error(
+        &mut self,
+        message: impl Into<String>,
+        outcome: &mut ClientShellInput,
+    ) {
+        outcome.repaint |= self.push_endpoint_notice(
+            ClientEndpointNoticeKind::Rejected,
+            "space_group",
+            "Group not changed",
+            message,
+        );
+    }
+
+    #[cfg(feature = "watchtower")]
+    pub(super) fn finish_space_group_change(
+        &mut self,
+        result: Result<(), String>,
+        outcome: &mut ClientShellInput,
+    ) {
+        match result {
+            Ok(()) => {
+                self.persist_chrome_preferences(outcome);
+                outcome.repaint = true;
+            }
+            Err(error) => self.space_group_error(error, outcome),
+        }
+    }
+
+    #[cfg(feature = "watchtower")]
+    pub(super) fn open_new_space_group_overlay(
+        &mut self,
+        endpoint_id: ClientEndpointId,
+        workspace: Option<ClientSpaceWorkspaceTarget>,
+    ) {
+        self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
+            title: "new group",
+            input: TextEditor::new("", false),
+            target: ClientRenameTarget::NewSpaceGroup {
+                endpoint_id,
+                workspace,
+            },
+        }));
+    }
+
+    pub(super) fn open_agent_sort_menu(&mut self, x: u16, y: u16) {
+        // Custom server views own sorting. Workspace scope is client-local and
+        // remains available so an active filter can always be disabled.
+        let Some(snapshot) = self.snapshot.as_deref() else {
+            return;
+        };
+        let sort_locked = snapshot.agent_view_label.is_some();
+        if !cfg!(feature = "watchtower") && sort_locked {
+            return;
+        }
+        let mut menu = ClientContextMenuOverlay {
+            target: ClientContextMenuTarget::AgentPanel {
+                sort: self.config.agent_panel_sort,
+                current_workspace_only: self.config.agent_current_workspace_only,
+                sort_locked,
+            },
+            x,
+            y,
+            highlighted: 0,
+        };
+        menu.highlighted = menu
+            .items()
+            .iter()
+            .position(|item| {
+                item.action == ClientContextMenuAction::SetAgentSort(self.config.agent_panel_sort)
+            })
+            .unwrap_or_default();
+        self.overlay = Some(ClientShellOverlay::ContextMenu(menu));
+    }
+
     pub(super) fn open_workspace_context_menu(&mut self, workspace_id: String, x: u16, y: u16) {
         let Some(snapshot) = self.snapshot.as_deref() else {
             return;
@@ -111,6 +370,13 @@ impl ClientShellState {
         });
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Workspace {
+                #[cfg(feature = "watchtower")]
+                scope: ClientSpaceWorkspaceTarget {
+                    endpoint_id: self.active_endpoint_id.clone(),
+                    workspace_id: workspace_id.clone(),
+                    boot_id: snapshot.boot_id.clone(),
+                    generation: self.active_snapshot_generation,
+                },
                 workspace_id,
                 is_git: worktree.is_some() || workspace.branch.is_some(),
                 is_linked_worktree: worktree.is_some_and(|worktree| worktree.is_linked_worktree),
@@ -192,7 +458,170 @@ impl ClientShellState {
             return;
         };
         match menu.target {
-            ClientContextMenuTarget::Workspace { workspace_id, .. } => {
+            #[cfg(feature = "watchtower")]
+            ClientContextMenuTarget::SpacesGrouping { endpoint_id, .. } => match action {
+                ClientContextMenuAction::SetSpacesGrouped(grouped) => {
+                    self.config.preferences.space_groups.grouped = grouped;
+                    self.workspace_scroll = 0;
+                    self.workspace_press = None;
+                    if matches!(self.chrome_drag, Some(ClientChromeDrag::Workspace { .. })) {
+                        self.chrome_drag = None;
+                    }
+                    self.persist_chrome_preferences(outcome);
+                }
+                ClientContextMenuAction::NewSpaceGroup => {
+                    self.open_new_space_group_overlay(endpoint_id, None)
+                }
+                _ => {}
+            },
+            #[cfg(feature = "watchtower")]
+            ClientContextMenuTarget::SpaceGroup {
+                endpoint_id,
+                group_id,
+            } => {
+                if !self
+                    .endpoints
+                    .iter()
+                    .any(|endpoint| endpoint.endpoint_id == endpoint_id)
+                {
+                    self.space_group_error("This endpoint is no longer available.", outcome);
+                    return;
+                }
+                let endpoint = endpoint_id.storage_key();
+                if action == ClientContextMenuAction::RenameSpaceGroup {
+                    let name = self
+                        .config
+                        .preferences
+                        .space_groups
+                        .groups
+                        .iter()
+                        .find(|group| group.endpoint == endpoint && group.id == group_id)
+                        .map(|group| group.name.clone());
+                    if let Some(name) = name {
+                        self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
+                            title: "rename group",
+                            input: TextEditor::new(&name, false),
+                            target: ClientRenameTarget::SpaceGroup {
+                                endpoint_id,
+                                group_id,
+                            },
+                        }));
+                    } else {
+                        self.space_group_error("This group no longer exists.", outcome);
+                    }
+                } else {
+                    let result = match action {
+                        ClientContextMenuAction::MoveSpaceGroup(delta) => self
+                            .config
+                            .preferences
+                            .space_groups
+                            .move_group(&endpoint, &group_id, delta),
+                        ClientContextMenuAction::RemoveSpaceGroup => self
+                            .config
+                            .preferences
+                            .space_groups
+                            .remove(&endpoint, &group_id),
+                        _ => return,
+                    };
+                    self.finish_space_group_change(result, outcome);
+                }
+            }
+            #[cfg(feature = "watchtower")]
+            ClientContextMenuTarget::WorkspaceGroups { workspace, groups } => {
+                if self.space_workspace_family(&workspace).is_none() {
+                    self.space_group_error(
+                        "This workspace changed or closed. Reopen its menu.",
+                        outcome,
+                    );
+                } else if action == ClientContextMenuAction::NewSpaceGroup {
+                    self.open_new_space_group_overlay(
+                        workspace.endpoint_id.clone(),
+                        Some(workspace),
+                    );
+                } else if let ClientContextMenuAction::AssignSpaceGroup(index) = action {
+                    let group_id = match index {
+                        Some(index) => match groups.get(index) {
+                            Some((id, _)) => Some(id.as_str()),
+                            None => return,
+                        },
+                        None => None,
+                    };
+                    let family = self.space_workspace_family(&workspace).unwrap_or_default();
+                    let result = self.config.preferences.space_groups.assign(
+                        &workspace.endpoint_id.storage_key(),
+                        &family,
+                        group_id,
+                    );
+                    self.finish_space_group_change(result, outcome);
+                }
+            }
+            ClientContextMenuTarget::AgentPanel { .. } => {
+                let Some(snapshot) = self.snapshot.as_deref() else {
+                    return;
+                };
+                match action {
+                    ClientContextMenuAction::SetAgentSort(sort)
+                        if snapshot.agent_view_label.is_none() =>
+                    {
+                        self.config.agent_panel_sort = sort;
+                        self.agent_panel_sort_manual = true;
+                    }
+                    #[cfg(feature = "watchtower")]
+                    ClientContextMenuAction::SetAgentWorkspaceFilter(enabled) => {
+                        self.config.agent_current_workspace_only = enabled;
+                    }
+                    _ => return,
+                }
+                self.agent_scroll = 0;
+                self.persist_chrome_preferences(outcome);
+            }
+            ClientContextMenuTarget::Workspace {
+                workspace_id,
+                #[cfg(feature = "watchtower")]
+                scope,
+                ..
+            } => {
+                #[cfg(feature = "watchtower")]
+                {
+                    if self.space_workspace_family(&scope).is_none() {
+                        self.space_group_error(
+                            "This workspace changed or closed. Reopen its menu.",
+                            outcome,
+                        );
+                        return;
+                    }
+                    if action == ClientContextMenuAction::MoveToSpaceGroup {
+                        let endpoint = scope.endpoint_id.storage_key();
+                        let groups = self
+                            .config
+                            .preferences
+                            .space_groups
+                            .groups
+                            .iter()
+                            .filter(|group| group.endpoint == endpoint)
+                            .map(|group| (group.id.clone(), group.name.clone()))
+                            .collect();
+                        self.overlay =
+                            Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
+                                target: ClientContextMenuTarget::WorkspaceGroups {
+                                    workspace: scope,
+                                    groups,
+                                },
+                                x: menu.x,
+                                y: menu.y,
+                                highlighted: 0,
+                            }));
+                        outcome.repaint = true;
+                        return;
+                    }
+                    if scope.endpoint_id != self.active_endpoint_id {
+                        self.space_group_error(
+                            "The active endpoint changed. Reopen the workspace menu.",
+                            outcome,
+                        );
+                        return;
+                    }
+                }
                 self.activate_workspace_context_action(workspace_id, action, outcome)
             }
             ClientContextMenuTarget::Tab {

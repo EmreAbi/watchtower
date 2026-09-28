@@ -111,7 +111,7 @@ pub(crate) fn render_collapsed_sidebar(
         detail_area.width,
         detail_area.height.saturating_sub(1),
     );
-    for (index, pane_id) in super::ordered_agent_pane_ids(snapshot, config.agent_panel_sort)
+    for (index, pane_id) in super::agent_sidebar::visible_agent_pane_ids(snapshot, config)
         .into_iter()
         .take(detail_content.height as usize)
         .enumerate()
@@ -210,7 +210,13 @@ pub(crate) fn render_sidebar(
             .add_modifier(Modifier::BOLD),
     );
 
-    let entries = workspace_entries(snapshot, state.collapsed_groups);
+    render_spaces_grouping_toggle(buffer, workspace_area, config, hits);
+    let entries = super::space_groups::rows(
+        snapshot,
+        state.collapsed_groups,
+        state.active_endpoint_id,
+        &config.preferences.space_groups,
+    );
     let body = Rect::new(
         workspace_area.x,
         workspace_area.y.saturating_add(WORKSPACE_HEADER_ROWS),
@@ -222,7 +228,10 @@ pub(crate) fn render_sidebar(
     hits.workspace_body = body;
     let row_heights = entries
         .iter()
-        .map(|entry| {
+        .map(|row| {
+            let super::space_groups::SpaceRow::Workspace(entry) = row else {
+                return 1;
+            };
             snapshot
                 .workspaces
                 .get(entry.index)
@@ -246,7 +255,7 @@ pub(crate) fn render_sidebar(
         .map(|(index, _)| {
             entries
                 .get(index + 1)
-                .map_or(0, |next| u16::from(!next.indented) * config.spaces.row_gap)
+                .map_or(0, |next| space_row_gap(next, config.spaces.row_gap))
         })
         .collect::<Vec<_>>();
     let mut metrics = super::scroll::list_scroll_metrics(
@@ -256,10 +265,10 @@ pub(crate) fn render_sidebar(
         *state.workspace_scroll,
     );
     if !body.is_empty() && std::mem::take(state.reveal_focused_workspace) {
-        if let Some(target) = entries
-            .iter()
-            .position(|entry| snapshot.workspaces[entry.index].focused)
-        {
+        if let Some(target) = entries.iter().position(|row| {
+            matches!(row, super::space_groups::SpaceRow::Workspace(entry)
+                if snapshot.workspaces[entry.index].focused)
+        }) {
             *state.workspace_scroll = super::scroll::list_scroll_start_to_reveal(
                 &row_heights,
                 &gaps,
@@ -283,7 +292,54 @@ pub(crate) fn render_sidebar(
     let show_scrollbar = metrics.max_offset_from_bottom > 0 && body.width > 1;
     let content_width = body.width.saturating_sub(u16::from(show_scrollbar));
     let mut y = body.y;
-    for (entry_position, entry) in entries.iter().enumerate().skip(*state.workspace_scroll) {
+    for (entry_position, row) in entries.iter().enumerate().skip(*state.workspace_scroll) {
+        let entry = match row {
+            super::space_groups::SpaceRow::Group {
+                index,
+                count,
+                status,
+            } => {
+                if y >= body.bottom() {
+                    break;
+                }
+                let rect = Rect::new(body.x, y, content_width, 1);
+                render_space_group_row(
+                    buffer,
+                    rect,
+                    *index,
+                    *count,
+                    *status,
+                    state.active_endpoint_id,
+                    config,
+                    hits,
+                );
+                let gap = entries
+                    .get(entry_position + 1)
+                    .map_or(0, |next| space_row_gap(next, config.spaces.row_gap));
+                y = y.saturating_add(1 + gap);
+                continue;
+            }
+            super::space_groups::SpaceRow::Workspace(entry) => entry,
+            super::space_groups::SpaceRow::Ungrouped { count, status } => {
+                if y >= body.bottom() {
+                    break;
+                }
+                render_space_group_header(
+                    buffer,
+                    Rect::new(body.x, y, content_width, 1),
+                    "Ungrouped",
+                    " ",
+                    *count,
+                    *status,
+                    config,
+                );
+                let gap = entries
+                    .get(entry_position + 1)
+                    .map_or(0, |next| space_row_gap(next, config.spaces.row_gap));
+                y = y.saturating_add(1 + gap);
+                continue;
+            }
+        };
         let Some(workspace) = snapshot.workspaces.get(entry.index) else {
             continue;
         };
@@ -305,9 +361,10 @@ pub(crate) fn render_sidebar(
         } else if workspace.focused {
             buffer.set_style(rect, Style::default().bg(palette.active_row_bg));
         }
+        let content_rect = space_workspace_rect(rect, &config.preferences.space_groups);
         render_workspace_rows(
             buffer,
-            rect,
+            content_rect,
             workspace,
             status,
             config.status_indicators,
@@ -335,7 +392,7 @@ pub(crate) fn render_sidebar(
         });
         let gap = entries
             .get(entry_position + 1)
-            .map_or(0, |next| u16::from(!next.indented) * config.spaces.row_gap);
+            .map_or(0, |next| space_row_gap(next, config.spaces.row_gap));
         y = y.saturating_add(row_height + gap);
     }
 
@@ -436,6 +493,128 @@ pub(crate) fn render_sidebar(
         hits.sidebar_toggle.width,
         "«",
         Style::default().fg(palette.overlay0),
+    );
+}
+
+pub(in crate::client::shell) fn render_spaces_grouping_toggle(
+    buffer: &mut Buffer,
+    area: Rect,
+    config: &ClientShellConfig,
+    hits: &mut ShellHitMap,
+) {
+    if !cfg!(feature = "watchtower") || area.width < 18 || area.height == 0 {
+        return;
+    }
+    let label = if config.preferences.space_groups.grouped {
+        "Groups ▾"
+    } else {
+        "Flat list ▾"
+    };
+    let width = display_width(label).min(area.width.saturating_sub(8));
+    let rect = Rect::new(area.right().saturating_sub(width + 1), area.y, width, 1);
+    hits.spaces_grouping_toggle = rect;
+    put_text(
+        buffer,
+        rect.x,
+        rect.y,
+        rect.width,
+        label,
+        Style::default().fg(config.palette.accent),
+    );
+}
+
+pub(in crate::client::shell) fn space_row_gap(
+    row: &super::space_groups::SpaceRow,
+    gap: u16,
+) -> u16 {
+    match row {
+        super::space_groups::SpaceRow::Workspace(entry) => u16::from(!entry.indented) * gap,
+        super::space_groups::SpaceRow::Group { .. }
+        | super::space_groups::SpaceRow::Ungrouped { .. } => gap,
+    }
+}
+
+pub(in crate::client::shell) fn space_workspace_rect(
+    rect: Rect,
+    groups: &super::space_groups::SpaceGroups,
+) -> Rect {
+    let indent = u16::from(cfg!(feature = "watchtower") && groups.grouped) * 2;
+    Rect::new(
+        rect.x.saturating_add(indent),
+        rect.y,
+        rect.width.saturating_sub(indent),
+        rect.height,
+    )
+}
+
+pub(in crate::client::shell) fn render_space_group_row(
+    buffer: &mut Buffer,
+    rect: Rect,
+    index: usize,
+    count: usize,
+    status: crate::api::schema::AgentStatus,
+    endpoint: &ClientEndpointId,
+    config: &ClientShellConfig,
+    hits: &mut ShellHitMap,
+) {
+    let Some(group) = config.preferences.space_groups.groups.get(index) else {
+        return;
+    };
+    let marker = if group.collapsed { "▸" } else { "▾" };
+    render_space_group_header(buffer, rect, &group.name, marker, count, status, config);
+    hits.space_groups
+        .push((rect, endpoint.clone(), group.id.clone()));
+}
+
+pub(in crate::client::shell) fn render_space_group_header(
+    buffer: &mut Buffer,
+    rect: Rect,
+    name: &str,
+    marker: &str,
+    count: usize,
+    status: crate::api::schema::AgentStatus,
+    config: &ClientShellConfig,
+) {
+    let palette = &config.palette;
+    let suffix = format!(" ({count})");
+    let suffix_width = display_width(&suffix).min(rect.width.saturating_sub(4));
+    let label_width = rect.width.saturating_sub(4 + suffix_width);
+    buffer.set_style(rect, Style::default().bg(palette.panel_bg));
+    put_text(
+        buffer,
+        rect.x,
+        rect.y,
+        rect.width.min(3),
+        &format!(" {marker} "),
+        Style::default()
+            .fg(palette.accent)
+            .add_modifier(Modifier::BOLD),
+    );
+    put_text(
+        buffer,
+        rect.x.saturating_add(3),
+        rect.y,
+        label_width,
+        name,
+        Style::default()
+            .fg(palette.text)
+            .add_modifier(Modifier::BOLD),
+    );
+    put_text(
+        buffer,
+        rect.right().saturating_sub(1 + suffix_width),
+        rect.y,
+        suffix_width,
+        &suffix,
+        Style::default().fg(palette.overlay1),
+    );
+    put_text(
+        buffer,
+        rect.right().saturating_sub(1),
+        rect.y,
+        u16::from(rect.width > 0),
+        status_icon(status, config.status_indicators),
+        Style::default().fg(status_color(status, palette)),
     );
 }
 
