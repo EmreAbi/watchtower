@@ -17,8 +17,8 @@ class WatchtowerPackageTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name) / "repo"
-        self.stage = Path(self.temporary.name) / "verified"
+        self.root = Path(self.temporary.name).resolve() / "repo"
+        self.stage = Path(self.temporary.name).resolve() / "verified"
         self.stage.mkdir()
         product = {
             "name": "Watchtower", "version": "0.1.0-preview.1",
@@ -60,7 +60,7 @@ class WatchtowerPackageTests(unittest.TestCase):
             conpty_tests.WindowsConptyPackageTests._pe_with_imports(0x8664, ["KERNEL32.dll"])
         )
         self.provenance = {"commit": "c" * 40, "dirty": False, "commit_timestamp": 1720000000}
-        self.output = Path(self.temporary.name) / "watchtower.zip"
+        self.output = Path(self.temporary.name).resolve() / "watchtower.zip"
 
     def build(self, output: Path | None = None) -> dict:
         return package.package_preview(

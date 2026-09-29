@@ -20,7 +20,7 @@ class BenchmarkAllowlistTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name) / "benchmarks"
+        self.root = Path(self.temp.name).resolve() / "benchmarks"
         fixture(self.root)
 
     def test_complete_runtime_only(self):

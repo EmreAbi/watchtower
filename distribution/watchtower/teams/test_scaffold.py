@@ -20,7 +20,7 @@ class ScaffoldTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.project = self.base / "project with spaces"
         self.project.mkdir()
         (self.project / "keep.txt").write_text("Existing unrelated work", encoding="utf-8")

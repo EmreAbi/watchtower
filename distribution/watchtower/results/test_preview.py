@@ -30,7 +30,7 @@ class LocalPreviewTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.addCleanup(preview.clear_cache)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
 
     def file(self, name="sample.md", value="# Result"):
         path = self.root / name

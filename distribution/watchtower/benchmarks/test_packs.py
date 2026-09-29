@@ -47,11 +47,11 @@ class PackTests(unittest.TestCase):
                    lambda p: p["source"].update(selection="a different sample"),
                    lambda p: p["cases"][0].update(source_id="wrong origin"),
                    lambda p: p["cases"][0]["expected"].update(answer="999")]
-        with tempfile.TemporaryDirectory() as temp, patch.object(packs, "PACK_ROOT", Path(temp)):
+        with tempfile.TemporaryDirectory() as temp, patch.object(packs, "PACK_ROOT", Path(temp).resolve()):
             for change in changes:
                 data = deepcopy(original)
                 change(data)
-                (Path(temp) / "gsm8k-subset-v1.json").write_text(json.dumps(data), encoding="utf-8")
+                (Path(temp).resolve() / "gsm8k-subset-v1.json").write_text(json.dumps(data), encoding="utf-8")
                 with self.subTest(change=change), self.assertRaises(packs.PackError):
                     packs.load_pack("gsm8k-subset")
 
@@ -81,11 +81,11 @@ class PackTests(unittest.TestCase):
                    lambda data: data["cases"][0]["expected"].update(reference_code="def solve(): return 999"),
                    lambda data: data["quick_case_ids"].reverse(),
                    lambda data: data.update(grading_version="2")]
-        with tempfile.TemporaryDirectory() as temp, patch.object(packs, "PACK_ROOT", Path(temp)):
+        with tempfile.TemporaryDirectory() as temp, patch.object(packs, "PACK_ROOT", Path(temp).resolve()):
             for change in changes:
                 data = deepcopy(original)
                 change(data)
-                (Path(temp) / "coding-v1.json").write_text(json.dumps(data), encoding="utf-8")
+                (Path(temp).resolve() / "coding-v1.json").write_text(json.dumps(data), encoding="utf-8")
                 with self.subTest(change=change), self.assertRaises(packs.PackError):
                     packs.load_pack("coding")
 

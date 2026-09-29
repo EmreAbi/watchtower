@@ -273,7 +273,7 @@ class PreviewViewTests(unittest.IsolatedAsyncioTestCase):
 
         calls = []
         with tempfile.TemporaryDirectory(prefix="watchtower-preview-test-") as temp:
-            path = Path(temp) / "synthetic.png"
+            path = Path(temp).resolve() / "synthetic.png"
             with Image.new("RGB", (640, 360), (225, 114, 70)) as image:
                 image.save(path)
 

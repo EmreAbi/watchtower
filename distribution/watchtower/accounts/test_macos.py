@@ -38,7 +38,7 @@ class MacAccountsTest(unittest.TestCase):
     def test_posix_provider_resolution_preserves_single_argv_with_spaces(self):
         with tempfile.TemporaryDirectory() as temporary:
             for provider in backend.PROVIDERS:
-                path = Path(temporary) / "tools with spaces" / provider
+                path = Path(temporary).resolve() / "tools with spaces" / provider
                 with patch("backend.os", SimpleNamespace(name="posix")), \
                         patch("backend.shutil.which", return_value=str(path)) as lookup:
                     self.assertEqual(backend.provider_command(provider), [str(path.resolve())])
@@ -46,7 +46,7 @@ class MacAccountsTest(unittest.TestCase):
 
     def test_posix_state_home_preserves_explicit_context_and_ignores_appdata(self):
         with tempfile.TemporaryDirectory() as temporary:
-            home = Path(temporary)
+            home = Path(temporary).resolve()
             with patch("backend.os", SimpleNamespace(name="posix", PathLike=os.PathLike)), patch.object(Path, "home", return_value=home):
                 self.assertEqual(backend.default_home({"LOCALAPPDATA": "windows-only"}), home / ".local/state/watchtower")
                 self.assertEqual(backend.default_home({"WATCHTOWER_HOME": str(home)}), home)

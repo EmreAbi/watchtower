@@ -20,7 +20,7 @@ class AccountsTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.reader = Mock()
         self.service = AccountService(self.root / "watchtower", self.root / "radio", reader=self.reader)
         self.defaults = {name: self.root / "existing" / name for name in backend.PROVIDERS}
@@ -566,7 +566,7 @@ class ReaderTest(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows npm shim resolution")
     def test_cmd_only_npm_install_resolves_node_script(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             script = root / "node_modules/@openai/codex/bin/codex.js"
             script.parent.mkdir(parents=True)
             script.write_text("// fake package launcher")
@@ -583,7 +583,7 @@ class ReaderTest(unittest.TestCase):
                                    ("gemini", "@google/gemini-cli/dist/index.js"),
                                    ("claude", "@anthropic-ai/claude-code/cli.js")):
             with self.subTest(provider=provider, path=relative), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 script = root / "node_modules" / relative
                 script.parent.mkdir(parents=True)
                 script.write_text("// fake package launcher")
@@ -597,7 +597,7 @@ class ReaderTest(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows native CLI resolution")
     def test_claude_native_install_preferred_over_npm(self):
         with tempfile.TemporaryDirectory() as directory:
-            executable = Path(directory) / "claude.exe"
+            executable = Path(directory).resolve() / "claude.exe"
             with patch("backend.shutil.which", return_value=str(executable)) as lookup:
                 self.assertEqual(backend.provider_command("claude"), [str(executable.resolve())])
             lookup.assert_called_once_with("claude.exe")
@@ -624,10 +624,10 @@ class ReaderTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             reader = CodexAccountReader()
             with patch.object(reader, "_probe", return_value={"auth_type": "chatgpt"}) as probe:
-                reader.read(Path(directory))
-                reader.read(Path(directory))
+                reader.read(Path(directory).resolve())
+                reader.read(Path(directory).resolve())
                 self.assertEqual(probe.call_count, 1)
-                reader.read(Path(directory), force=True)
+                reader.read(Path(directory).resolve(), force=True)
                 self.assertEqual(probe.call_count, 2)
 
 

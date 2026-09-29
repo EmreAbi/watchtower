@@ -64,12 +64,12 @@ class ResumeTest(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         env["CODEX_HOME"] = plan["env"]["CODEX_HOME"] = directory.name
-        path = Path(directory.name) / "sessions" / ("rollout-" + plan["switch_candidate"]["session_id"] + ".jsonl")
+        path = Path(directory.name).resolve() / "sessions" / ("rollout-" + plan["switch_candidate"]["session_id"] + ".jsonl")
         path.parent.mkdir()
         # Matching old metadata is deliberately present; it is not launch proof.
         path.write_text(json.dumps(event(plan)) + "\n", encoding="utf-8")
         plan["switch_session_path"] = str(path)
-        receipt = Path(directory.name) / "switch.receipt.json"
+        receipt = Path(directory.name).resolve() / "switch.receipt.json"
         receipt.write_text(json.dumps({"state": "launching", "profile_id": "target",
                                        "session_id": plan["switch_candidate"]["session_id"]}))
         plan["switch_receipt_path"] = str(receipt)
@@ -237,7 +237,7 @@ class ResumeTest(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         plan, _, _, _, _ = fixture()
         plan["env"]["CODEX_HOME"] = directory.name
-        path = Path(directory.name) / "sessions" / ("rollout-" + plan["switch_candidate"]["session_id"] + ".jsonl")
+        path = Path(directory.name).resolve() / "sessions" / ("rollout-" + plan["switch_candidate"]["session_id"] + ".jsonl")
         path.parent.mkdir()
         path.write_text(json.dumps(event(plan)) + "\n", encoding="utf-8")
         plan["switch_session_path"] = str(path)

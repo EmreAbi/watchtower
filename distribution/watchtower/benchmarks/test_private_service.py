@@ -33,6 +33,7 @@ class ChoiceRunner:
 class PackInspectionTest(unittest.TestCase):
     def test_every_bundled_test_is_inspectable_without_accounts_or_runs(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory).resolve()
             runner = Mock()
             runner.profiles.side_effect = AssertionError("Inspection must not read accounts")
             runner.models.side_effect = AssertionError("Inspection must not discover models")
@@ -55,6 +56,7 @@ class PackInspectionTest(unittest.TestCase):
 
     def test_invalid_test_ids_fail_without_provider_work(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory).resolve()
             runner = Mock()
             lab = service.LabService(runner, directory)
             for identifier in ("../private", "pi-../../outside", "unknown", None, 15):
@@ -64,6 +66,7 @@ class PackInspectionTest(unittest.TestCase):
 
     def test_private_catalog_and_every_case_inspect_without_accounts_or_inference(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory).resolve()
             runner = Mock()
             lab = service.LabService(runner, directory)
             for identifier in FIXTURE_SPECS:
@@ -80,6 +83,7 @@ class PackInspectionTest(unittest.TestCase):
 
     def test_full_single_target_preserves_inputs_and_freezes_inspectable_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory).resolve()
             library = Path(directory) / "state/benchmarks/packs"
             original = install_fixture(library)
             runner = ChoiceRunner(original)
@@ -116,6 +120,7 @@ class PackInspectionTest(unittest.TestCase):
 
     def test_two_full_targets_rejected_before_account_lookup_or_any_request(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory).resolve()
             runner = Mock()
             lab = service.LabService(runner, directory)
             install_fixture(lab.pack_root)
@@ -127,6 +132,7 @@ class PackInspectionTest(unittest.TestCase):
 
     def test_changed_private_reference_version_cannot_compare_with_old_run(self):
         with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory).resolve()
             lab = service.LabService(Mock(), directory)
             original = install_fixture(lab.pack_root, "private-selection")
             runner = ChoiceRunner(original)

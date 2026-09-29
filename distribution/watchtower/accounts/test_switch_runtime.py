@@ -157,7 +157,7 @@ class RuntimeTest(unittest.TestCase):
             self.assert_code("switch_stop_timeout", lambda: runtime.stop(candidate()))
             self.assertFalse(any(call[1] == "run" for call in native.calls))
         with tempfile.TemporaryDirectory() as directory:
-            ticket, runner = Path(directory) / "ticket.json", Path(directory) / "switch_service.py"
+            ticket, runner = Path(directory).resolve() / "ticket.json", Path(directory).resolve() / "switch_service.py"
             ticket.write_text("{}")
             runner.write_text("# fixture")
             native = Native(before=shell())
@@ -284,7 +284,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_launch_uses_literal_arguments_only_inside_verified_same_shell(self):
         with tempfile.TemporaryDirectory(prefix="switch ' $() ` ") as root:
-            root = Path(root)
+            root = Path(root).resolve()
             ticket, runner = root / "ticket.json", root / "switch_service.py"
             ticket.write_text("{}")
             runner.write_text("# synthetic fixture")
@@ -301,7 +301,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_launch_revalidates_shell_and_failed_delivery_is_not_retried(self):
         with tempfile.TemporaryDirectory() as root:
-            ticket, runner = Path(root) / "ticket.json", Path(root) / "switch_service.py"
+            ticket, runner = Path(root).resolve() / "ticket.json", Path(root).resolve() / "switch_service.py"
             ticket.write_text("{}")
             runner.write_text("# fixture")
             native = Native()

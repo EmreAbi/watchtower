@@ -41,7 +41,7 @@ class SwitchTests(unittest.TestCase):
         self.enterContext(patch("switch_service.switch_supported", return_value=True))
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.service = AccountService(self.root / "watchtower", self.root / "radio", reader=Mock())
         self.service._default_home = lambda p: self.root / "unused" / p
         self.source = self.service.add("source", "codex")

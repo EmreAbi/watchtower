@@ -53,7 +53,7 @@ class TeamServiceTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="watchtower-team-service-")
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.project = self.root / "existing project"
         self.project.mkdir()
         (self.project / "keep.txt").write_text("Existing unrelated work", encoding="utf-8")

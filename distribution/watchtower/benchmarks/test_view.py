@@ -865,6 +865,7 @@ class ModelLabTests(unittest.IsolatedAsyncioTestCase):
                 return dict(status="ok",text="Synthetic test response",adapter="test-only",provider_version="fixture",
                             conditions={"execution_kind":"synthetic"},elapsed_ms=1,usage={})
         with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory).resolve()
             runner=SyntheticRunner();service=LabService(runner=runner,home=directory);app=ModelLab(service)
             async with app.run_test(size=(81,25)) as pilot:
                 await self.ready(app,pilot)
@@ -884,7 +885,7 @@ class LauncherTest(unittest.TestCase):
     def test_private_runtime_fresh_child_and_clean_python_environment(self):
         directory=Path(__file__).resolve().parent
         with tempfile.TemporaryDirectory() as root:
-            python=Path(root)/"python.exe";python.write_bytes(b"synthetic marker")
+            python=Path(root).resolve()/"python.exe";python.write_bytes(b"synthetic marker")
             spec=importlib.util.spec_from_file_location("model_lab_launcher_test",directory/"launcher.py")
             launcher=importlib.util.module_from_spec(spec);spec.loader.exec_module(launcher)
             runtime=SimpleNamespace(runtime_candidates=lambda env:[python],supports_textual=lambda path,env:True)

@@ -3083,8 +3083,13 @@ mod tests {
             err.contains("work") && err.contains("status API did not respond"),
             "unexpected error: {err}"
         );
+        let command = if cfg!(feature = "watchtower") {
+            "watchtower"
+        } else {
+            "herdr"
+        };
         assert!(
-            err.contains("herdr session stop work"),
+            err.contains(&format!("{command} session stop work")),
             "unexpected error: {err}"
         );
     }

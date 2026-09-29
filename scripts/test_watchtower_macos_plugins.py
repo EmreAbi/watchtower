@@ -100,6 +100,10 @@ class MacOSPluginTests(unittest.TestCase):
     @unittest.skipIf(os.name == "nt", "native POSIX shell")
     def test_setup_and_start_share_home_and_link_only_never_installs(self):
         self.stage.mkdir()
+        # Exercise a real directory alias even on Linux; macOS also aliases
+        # its system temporary directory through /var -> /private/var.
+        launch_root = self.stage.parent / "package alias"
+        launch_root.symlink_to(self.stage.resolve(), target_is_directory=True)
         fake_bin = self.stage / "test-bin"
         fake_bin.mkdir()
         python = fake_bin / "python3"
@@ -115,17 +119,17 @@ class MacOSPluginTests(unittest.TestCase):
         for name in plugins.LAUNCHERS:
             shutil.copyfile(ROOT / "distribution/watchtower" / name, self.stage / name)
             args = ["--link-only"] if name == "setup-accounts" else []
-            result = subprocess.run(["sh", str(self.stage / name), *args],
+            result = subprocess.run(["sh", str(launch_root / name), *args],
                                     capture_output=True, text=True, env=env, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             if name == "setup-accounts":
                 expected = []
                 for plugin in plugins.PLUGINS:
-                    expected += [expected_home, "plugin", "link", str(self.stage / plugin)]
+                    expected += [expected_home, "plugin", "link", str(self.stage.resolve() / plugin)]
                 self.assertEqual(result.stdout.splitlines(), expected)
             else:
                 self.assertEqual(result.stdout.splitlines()[0], expected_home)
-            invalid = subprocess.run(["sh", str(self.stage / name), *args], capture_output=True,
+            invalid = subprocess.run(["sh", str(launch_root / name), *args], capture_output=True,
                                      text=True, env=dict(env, WATCHTOWER_HOME="relative"), timeout=10)
             self.assertNotEqual(invalid.returncode, 0)
             self.assertIn("must be an absolute path", invalid.stderr)
@@ -137,12 +141,16 @@ class MacOSPluginTests(unittest.TestCase):
         binary = self.stage / "watchtower"
         binary.write_text("#!/bin/sh\nprintf '%s\\n' \"$PWD\" \"$@\"\n")
         binary.chmod(0o755)
+        launch_root = self.stage.parent / "package alias"
+        launch_root.symlink_to(self.stage.resolve(), target_is_directory=True)
         result = subprocess.run(
-            ["sh", str(self.stage / "open-watchtower"), "with spaces", "--version"],
+            ["sh", str(launch_root / "open-watchtower"), "with spaces", "--version"],
             capture_output=True, text=True, timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.splitlines(), [str(self.stage), "with spaces", "--version"])
+        # The launcher deliberately uses cd -P: macOS /var aliases become
+        # /private/var, while user arguments remain byte-for-byte unchanged.
+        self.assertEqual(result.stdout.splitlines(), [str(self.stage.resolve()), "with spaces", "--version"])
 
 
 class AccountsSetupTests(unittest.TestCase):

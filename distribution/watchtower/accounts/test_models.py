@@ -38,7 +38,7 @@ class CatalogTest(unittest.TestCase):
     def test_codex_reads_selected_home_only_and_bounds_corrupt_cache(self):
         with tempfile.TemporaryDirectory() as root:
             profile = {"home": root}
-            path = Path(root) / "models_cache.json"
+            path = Path(root).resolve() / "models_cache.json"
             self.assertEqual(models.codex_catalog(profile)["models"], [])
             path.write_text(json.dumps({"models":[{"slug":"my-model"}]}), encoding="utf-8")
             with patch("models.subprocess.Popen") as start:
@@ -189,13 +189,13 @@ class NativeModelTest(unittest.TestCase):
 
     def test_launch_ticket_preserves_explicit_model_without_sending_task(self):
         with tempfile.TemporaryDirectory() as root:
-            service=Mock(home=Path(root))
+            service=Mock(home=Path(root).resolve())
             with patch("integration.list_workspaces",return_value=[{"id":"w9","cwd":root}]), \
                     patch("integration._host_env",return_value=("watchtower.exe",{"HERDR_SOCKET_PATH":"private.sock"})), \
                     patch("integration._cli",return_value={"plugin_pane":{"pane":{"pane_id":"w9:p2","workspace_id":"w9"}}}):
                 integration.launch_profile(service,"work","worker","w9",model="gpt-example")
             service.launch_plan.assert_called_once_with("work","worker",workspace="w9",model="gpt-example")
-            tickets=list((Path(root)/"state/accounts/launches").glob("*.json"))
+            tickets=list((Path(root).resolve()/"state/accounts/launches").glob("*.json"))
             self.assertEqual(len(tickets),1)
             self.assertEqual(json.loads(tickets[0].read_text())["model"],"gpt-example")
 

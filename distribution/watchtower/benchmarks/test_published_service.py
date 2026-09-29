@@ -60,7 +60,7 @@ class PublishedServiceTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.home = Path(self.temp.name)
+        self.home = Path(self.temp.name).resolve()
         self.packs = {pack_id: service.packs.load_pack(pack_id) for pack_id in PUBLISHED}
         self.runner = PublishedRunner(self.packs.values())
         self.lab = service.LabService(self.runner, self.home)

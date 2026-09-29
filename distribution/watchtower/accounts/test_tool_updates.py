@@ -14,7 +14,7 @@ class ToolUpdatesTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.profile = self.base / "profile"
         self.local = self.base / "local"
         self.root = self.profile / ".codex/packages/standalone"

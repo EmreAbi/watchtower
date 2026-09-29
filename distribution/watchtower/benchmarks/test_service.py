@@ -37,7 +37,7 @@ class ServiceTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.root = Path(self.temp.name).resolve()
         self.runner = FakeRunner()
         self.lab = service.LabService(self.runner, self.root)
         self.pack = dict(id="synthetic", name="Synthetic", version=1, description="Fixture", hash="fixedhash", grading_version="1",
