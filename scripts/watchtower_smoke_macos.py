@@ -44,10 +44,11 @@ class Instance:
                                         stdin=subprocess.DEVNULL, stdout=self.log, stderr=subprocess.STDOUT,
                                         start_new_session=True)
         def ready():
+            require(self.process.poll() is None, f'{self.label} server exited during startup')
             result = self.run('status', 'server', '--json', json_output=True)
             if result.get('running'):
                 require(result['session'] == f'smoke-{self.label}', 'Wrong runtime session')
-                require(result['pid'] == self.process.pid, 'Server identity differs')
+                require(Path(result['socket']).resolve().is_relative_to(self.home), 'Server socket escaped disposable home')
                 self.status = result
                 return True
         wait_until(ready, f'{self.label} server startup')

@@ -70,16 +70,16 @@ jobs:
         run: cargo nextest run --locked --features watchtower --bin herdr --no-fail-fast --status-level fail --final-status-level fail
       - name: Build and verify portable Mac archive
         run: |
-          python3 -B scripts/watchtower_build_macos.py --require-clean-source
-          mkdir -p target/watchtower-macos-smoke
-          tar -xzf target/watchtower-artifacts-macos/watchtower-*.tar.gz -C target/watchtower-macos-smoke
-          python3 -B scripts/watchtower_smoke_macos.py --exe target/watchtower-macos-smoke/watchtower --report target/watchtower-macos-smoke.json
+          python3 -B scripts/watchtower_build_macos.py --require-clean-source --output-dir "$RUNNER_TEMP/watchtower-artifacts-macos"
+          mkdir -p "$RUNNER_TEMP/watchtower-macos-smoke"
+          tar -xzf "$RUNNER_TEMP"/watchtower-artifacts-macos/watchtower-*.tar.gz -C "$RUNNER_TEMP/watchtower-macos-smoke"
+          python3 -B scripts/watchtower_smoke_macos.py --exe "$RUNNER_TEMP/watchtower-macos-smoke/watchtower" --report "$RUNNER_TEMP/watchtower-artifacts-macos/watchtower-macos-smoke.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: watchtower-macos-aarch64-preview
           path: |
-            target/watchtower-artifacts-macos/watchtower-*.tar.gz
-            target/watchtower-artifacts-macos/watchtower-*.tar.gz.sha256
-            target/watchtower-macos-smoke.json
+            ${{ runner.temp }}/watchtower-artifacts-macos/watchtower-*.tar.gz
+            ${{ runner.temp }}/watchtower-artifacts-macos/watchtower-*.tar.gz.sha256
+            ${{ runner.temp }}/watchtower-artifacts-macos/watchtower-macos-smoke.json
           if-no-files-found: error
           retention-days: 30
