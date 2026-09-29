@@ -14,7 +14,7 @@ class OutputFilesTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
+        self.root = Path(self.tmp.name).resolve()
         self.cache = self.root / "previews"
 
     def file(self, name="result.md", data="# Output"):
@@ -130,17 +130,63 @@ class OutputFilesTest(unittest.TestCase):
 
     def test_save_as_is_explicit_and_requires_same_extension(self):
         path = self.file()
-        widget = Mock()
-        with patch("tkinter.Tk", return_value=widget), patch("tkinter.filedialog.asksaveasfilename", return_value=""):
+        with patch("files._save_destination", return_value=""):
             self.assertEqual(files.action(path, "save_as", self.cache), "Save cancelled.")
         destination = self.root / "copied.md"
-        with patch("tkinter.Tk", return_value=widget), patch("tkinter.filedialog.asksaveasfilename", return_value=str(destination)):
+        with patch("files._save_destination", return_value=str(destination)):
             self.assertEqual(files.action(path, "save_as", self.cache), "Saved output.")
         self.assertEqual(destination.read_bytes(), path.read_bytes())
-        with patch("tkinter.Tk", return_value=widget), patch("tkinter.filedialog.asksaveasfilename", return_value=str(self.root / "bad.exe")):
+        with patch("files._save_destination", return_value=str(self.root / "bad.exe")):
             with self.assertRaises(ValueError):
                 files.action(path, "save_as", self.cache)
         self.assertFalse((self.root / "bad.exe").exists())
+
+    def test_macos_reveal_uses_validated_path_as_one_argument(self):
+        path = self.file("result with spaces and 'quotes'.md")
+        with patch.object(files.sys, "platform", "darwin"), patch("files.subprocess.run") as run:
+            self.assertEqual(files.action(path, "show_folder", self.cache), "Opened containing folder.")
+        self.assertEqual(run.call_args.args[0], ["/usr/bin/open", "-R", str(path)])
+        self.assertNotIn("shell", run.call_args.kwargs)
+        self.assertTrue(run.call_args.kwargs["check"])
+        self.assertEqual(run.call_args.kwargs["timeout"], 5)
+
+    def test_macos_clipboard_receives_full_unicode_path_only_on_stdin(self):
+        path = self.file("Gün doğuşu & sample.md")
+        with patch.object(files.sys, "platform", "darwin"), patch("files.subprocess.run") as run:
+            self.assertEqual(files.action(path, "copy_path", self.cache), "Copied full path.")
+        self.assertEqual(run.call_args.args[0], ["/usr/bin/pbcopy"])
+        self.assertEqual(run.call_args.kwargs["input"], str(path))
+        self.assertEqual(run.call_args.kwargs["encoding"], "utf-8")
+        self.assertNotIn("creationflags", run.call_args.kwargs)
+
+    def test_macos_helper_failure_is_not_reported_as_success(self):
+        path = self.file()
+        for name in ("show_folder", "copy_path", "save_as"):
+            with self.subTest(name=name), patch.object(files.sys, "platform", "darwin"), \
+                    patch("files.subprocess.run", side_effect=subprocess.CalledProcessError(1, "helper")), \
+                    self.assertRaises(subprocess.CalledProcessError):
+                files.action(path, name, self.cache)
+
+    def test_macos_save_chooser_passes_filename_as_data_and_copies_output(self):
+        path = self.file("output's report.md")
+        destination = self.root / "copied output.md"
+        with patch.object(files.sys, "platform", "darwin"), \
+                patch("files.subprocess.run", return_value=Mock(stdout=str(destination)+"\n")) as run:
+            self.assertEqual(files.action(path, "save_as", self.cache), "Saved output.")
+        argv = run.call_args.args[0]
+        self.assertEqual(argv[:2], ["/usr/bin/osascript", "-e"])
+        self.assertEqual(argv[-1], path.name)
+        self.assertNotIn(path.name, argv[2])
+        self.assertNotIn("shell", run.call_args.kwargs)
+        self.assertEqual(destination.read_bytes(), path.read_bytes())
+
+    def test_macos_save_chooser_cancel_does_not_create_output(self):
+        path = self.file()
+        with patch.object(files.sys, "platform", "darwin"), \
+                patch("files.subprocess.run", return_value=Mock(stdout="\n")), \
+                patch("files.shutil.copyfile") as copy:
+            self.assertEqual(files.action(path, "save_as", self.cache), "Save cancelled.")
+        copy.assert_not_called()
 
 
 if __name__ == "__main__":

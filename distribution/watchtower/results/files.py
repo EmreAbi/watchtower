@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from urllib.parse import unquote, urlsplit
 import webbrowser
@@ -92,32 +93,31 @@ def action(path, name, cache):
             raise ValueError('Browser could not be opened.')
         return 'Opened in browser.'
     if name == 'show_folder':
-        if os.name != 'nt':
-            raise ValueError('Folder actions currently require Windows.')
-        subprocess.Popen([str(Path(os.environ['SystemRoot']) / 'explorer.exe'), '/select,', str(path)])
+        if sys.platform == 'darwin':
+            # The validated absolute path is one argument, never shell text.
+            subprocess.run(['/usr/bin/open', '-R', str(path)], stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5, check=True)
+        elif os.name == 'nt':
+            subprocess.Popen([str(Path(os.environ['SystemRoot']) / 'explorer.exe'), '/select,', str(path)])
+        else:
+            raise ValueError('Folder actions require Windows or macOS.')
         return 'Opened containing folder.'
     if name == 'copy_path':
-        if os.name != 'nt':
-            raise ValueError('Clipboard actions currently require Windows.')
-        powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
-        subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-STA', '-Command',
-            "$ErrorActionPreference='Stop'; [Console]::InputEncoding=[System.Text.Encoding]::UTF8; "
-            'Set-Clipboard -Value ([Console]::In.ReadToEnd()) -ErrorAction Stop'],
-            input=str(path), text=True, encoding='utf-8', stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL, timeout=5, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        if sys.platform == 'darwin':
+            subprocess.run(['/usr/bin/pbcopy'], input=str(path), text=True, encoding='utf-8',
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5, check=True)
+        elif os.name == 'nt':
+            powershell = Path(os.environ['SystemRoot']) / 'System32/WindowsPowerShell/v1.0/powershell.exe'
+            subprocess.run([str(powershell), '-NoProfile', '-NonInteractive', '-STA', '-Command',
+                "$ErrorActionPreference='Stop'; [Console]::InputEncoding=[System.Text.Encoding]::UTF8; "
+                'Set-Clipboard -Value ([Console]::In.ReadToEnd()) -ErrorAction Stop'],
+                input=str(path), text=True, encoding='utf-8', stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, timeout=5, check=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        else:
+            raise ValueError('Clipboard actions require Windows or macOS.')
         return 'Copied full path.'
     if name == 'save_as':
-        import tkinter as tk
-        from tkinter import filedialog
-        root = tk.Tk()
-        root.withdraw()
-        root.attributes('-topmost', True)
-        try:
-            target = filedialog.asksaveasfilename(parent=root, title='Save output as',
-                initialfile=path.name, defaultextension=path.suffix,
-                filetypes=[('Output', '*' + path.suffix)])
-        finally:
-            root.destroy()
+        target = _save_destination(path)
         if not target:
             return 'Save cancelled.'
         destination = Path(target)
@@ -127,3 +127,28 @@ def action(path, name, cache):
             shutil.copyfile(path, destination)
         return 'Saved output.'
     raise ValueError('Unknown file action.')
+
+
+def _save_destination(path):
+    if sys.platform == 'darwin':
+        # Native chooser avoids requiring an optional Tcl/Tk installation.
+        # The filename is data in argv, not an interpolated AppleScript literal.
+        script = ("on run argv\ntry\n"
+                  'return POSIX path of (choose file name with prompt "Save output as" '
+                  'default name (item 1 of argv))\n'
+                  'on error number -128\nreturn ""\nend try\nend run')
+        result = subprocess.run(['/usr/bin/osascript', '-e', script, path.name],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, encoding='utf-8', timeout=300, check=True)
+        return result.stdout.rstrip('\r\n')
+    import tkinter as tk
+    from tkinter import filedialog
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes('-topmost', True)
+    try:
+        return filedialog.asksaveasfilename(parent=root, title='Save output as',
+            initialfile=path.name, defaultextension=path.suffix,
+            filetypes=[('Output', '*' + path.suffix)])
+    finally:
+        root.destroy()

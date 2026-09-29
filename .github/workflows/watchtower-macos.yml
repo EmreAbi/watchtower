@@ -1,0 +1,68 @@
+name: Watchtower macOS preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/watchtower-macos-preview]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: watchtower-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUTF8: "1"
+  CARGO_PROFILE_TEST_DEBUG: "1"
+  MACOSX_DEPLOYMENT_TARGET: "15.0"
+
+jobs:
+  macos-preview:
+    if: github.repository == 'EmreAbi/watchtower'
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # v1
+        with:
+          toolchain: 1.96.1
+          components: rustfmt,clippy
+          targets: aarch64-apple-darwin
+      - uses: vercel-labs/setup-zig@83c1594f26b86da8a9a8ddd9b5ee5f3af0f96943 # v1.0.2
+        with:
+          version: 0.16.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12.10"
+      - name: Verify native Apple Silicon and install test dependencies
+        run: |
+          test "$(uname -m)" = arm64
+          python3 -m pip install --disable-pip-version-check --only-binary=:all: textual==8.2.8 Pillow==12.3.0 pypdfium2==5.13.0
+      - name: Check Rust and Python runtimes
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets --locked --features watchtower -- -D warnings
+          cargo test --locked --features watchtower --bin herdr
+          python3 -B -m unittest discover -s scripts -p 'test_watchtower_*.py'
+          for suite in accounts results teams benchmarks; do
+            python3 -B -m unittest discover -s "distribution/watchtower/$suite" -p 'test_*.py'
+          done
+      - name: Build and verify portable Mac archive
+        run: |
+          python3 -B scripts/watchtower_build_macos.py --require-clean-source
+          mkdir -p target/watchtower-macos-smoke
+          tar -xzf target/watchtower-artifacts-macos/watchtower-*.tar.gz -C target/watchtower-macos-smoke
+          python3 -B scripts/watchtower_smoke_macos.py --exe target/watchtower-macos-smoke/watchtower --report target/watchtower-macos-smoke.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: watchtower-macos-aarch64-preview
+          path: |
+            target/watchtower-artifacts-macos/watchtower-*.tar.gz
+            target/watchtower-artifacts-macos/watchtower-*.tar.gz.sha256
+            target/watchtower-macos-smoke.json
+          if-no-files-found: error
+          retention-days: 30

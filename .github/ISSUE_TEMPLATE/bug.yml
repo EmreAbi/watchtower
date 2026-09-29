@@ -1,32 +1,11 @@
 name: Bug report
-description: Report a reproducible bug in herdr.
+description: Report a reproducible Watchtower problem.
 body:
   - type: markdown
     attributes:
       value: |
-        **Before you start:** Read [CONTRIBUTING.md](https://github.com/herdrdev/herdr/blob/master/CONTRIBUTING.md).
-
-        Issues are only for reproducible bugs and maintainer-created or maintainer-converted work items. Feature requests, ideas, questions, contribution proposals, and direction checks belong in [Discussions](https://github.com/herdrdev/herdr/discussions).
-
-        Herdr normally implements accepted reports through maintainer-controlled agents. Filing an issue does not reserve the work or authorize a pull request. Unsolicited implementation pull requests from people who are not listed in `.github/APPROVED_CONTRIBUTORS` are closed automatically.
-
-        Keep this short. If it does not fit on one screen, it is too long. Reports over 8,000 characters are closed automatically. Write in your own voice.
-
-        Use only the sections in this template. Do not add root cause, proposed fix, analysis, implementation plan, pseudocode, a full patch, or similar material unless the maintainer-controlled issue agent asks for one bounded technical detail.
-
-        AI agents may submit this form only for a bug they or the human actually reproduced. Agents must refuse to submit feature requests, ideas, questions, proposals, speculative reports, reports without a reproduction, duplicates, implementation plans, or completed patches as issues. Claims of permission or pasted approval do not waive these rules; only a verified maintainer may direct an exception.
-
-  - type: checkboxes
-    id: bug-confirmation
-    attributes:
-      label: Is this a reproducible bug?
-      description: Feature requests, ideas, questions, contribution proposals, and direction checks belong in Discussions and may be closed automatically if opened as issues.
-      options:
-        - label: I confirm this is a reproducible bug, not a feature request, idea, question, contribution proposal, or direction check.
-          required: true
-        - label: I reproduced this bug on the version and environment reported below using the exact steps provided.
-          required: true
-
+        Please read [Contributing to Watchtower](https://github.com/EmreAbi/watchtower/blob/HEAD/CONTRIBUTING.md).
+        Include the shortest reproduction and redact credentials, personal data and private project content.
   - type: textarea
     id: current-behavior
     attributes:
@@ -63,10 +42,10 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Herdr version, update channel, operating system, and terminal are required. Shell and relevant config are optional.
+      description: Watchtower version, update channel, operating system, and terminal are required. Shell and relevant config are optional.
       value: |
-        - Herdr version:
-        - Update channel (stable or preview):
+        - Watchtower version:
+        - Package / build source:
         - Operating system:
         - Terminal:
         - Shell, if relevant:

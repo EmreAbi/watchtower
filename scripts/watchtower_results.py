@@ -8,6 +8,7 @@ RUNTIME_FILES = {
     "preview.py", "preview_view.py", "status.py",
     "herdr-plugin.toml", "bin/center.cmd", "README.md",
 }
+MACOS_FILES = {"herdr-plugin.macos.toml", "bin/center"}
 DEVELOPMENT_FILES = {
     "test_bridge.py", "test_files.py", "test_session_reader.py", "test_view.py", "test_launcher.py",
     "test_preview.py", "test_preview_view.py", "test_status.py",
@@ -20,7 +21,7 @@ def _is_link(path: Path) -> bool:
 
 def validated_results_files(root: Path) -> list[Path]:
     actual = {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}
-    if not RUNTIME_FILES <= actual or actual - RUNTIME_FILES - DEVELOPMENT_FILES:
+    if not RUNTIME_FILES <= actual or actual - RUNTIME_FILES - DEVELOPMENT_FILES - MACOS_FILES:
         raise ValueError("Unexpected or missing files in the Results package")
     if _is_link(root):
         raise ValueError("Results package cannot contain symbolic links or junctions")

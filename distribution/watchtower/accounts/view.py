@@ -901,7 +901,9 @@ class AccountCenter(App):
     def compose(self) -> ComposeResult:
         with Horizontal(id="topbar"):
             yield Static("◈  Accounts", id="heading")
-            yield Button("Switch account…", id="switch-account")
+            from switch_service import PLATFORM_UNSUPPORTED, switch_supported
+            yield Button("Switch account…", id="switch-account", disabled=not switch_supported(),
+                         tooltip=None if switch_supported() else PLATFORM_UNSUPPORTED)
             yield Button("Tools", id="tools")
         yield Static("Choose who your next agent signs in as. Accounts are shared across workspaces.", id="subtitle")
         with Horizontal(id="content"):
@@ -965,7 +967,8 @@ class AccountCenter(App):
             return
         selected = self.selected_profile()
         if self.query("#switch-account"):
-            self.query_one("#switch-account",Button).disabled=self.busy or selected is None
+            from switch_service import switch_supported
+            self.query_one("#switch-account",Button).disabled=self.busy or selected is None or not switch_supported()
         for button in self.query("#buttons Button"):
             button.disabled = self.busy or (button.id != "add" and selected is None)
         if selected and not self.busy:
@@ -1030,6 +1033,10 @@ class AccountCenter(App):
 
     @work(group="action")
     async def action_switch_account(self) -> None:
+        from switch_service import PLATFORM_UNSUPPORTED, switch_supported
+        if not switch_supported():
+            self.notify_status(PLATFORM_UNSUPPORTED)
+            return
         source=self.selected_profile()
         if self.busy or not source:
             return

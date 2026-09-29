@@ -31,7 +31,8 @@ def main():
             raise ValueError('Accounts UI runtime is unavailable.')
         return subprocess.run([str(python), '-B', str(ROOT / 'view.py')], env=env, cwd=ROOT).returncode
     except (OSError, ValueError, subprocess.SubprocessError):
-        print('Watchtower Teams needs the Accounts UI runtime. Run setup-accounts.cmd first.', file=sys.stderr)
+        setup = 'setup-accounts.cmd' if os.name == 'nt' else './setup-accounts'
+        print(f'Watchtower Teams needs the Accounts UI runtime. Run {setup} first.', file=sys.stderr)
         return 1
 
 

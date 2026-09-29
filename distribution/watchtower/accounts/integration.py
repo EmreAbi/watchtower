@@ -174,7 +174,19 @@ def open_browser_login(url):
 def copy_login_link(url):
     """Copy the complete link through stdin; never put OAuth data in argv."""
     link = _valid_login_link(url)
-    if link is None or os.name != "nt":
+    if link is None:
+        return False
+    if sys.platform == "darwin":
+        try:
+            result = subprocess.run(
+                ["/usr/bin/pbcopy"], input=link, text=True, encoding="utf-8",
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=5, check=False,
+            )
+            return result.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+    if os.name != "nt":
         return False
     powershell = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     command = (

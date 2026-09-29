@@ -7,7 +7,7 @@ use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub const VERSION: &str = "0.1.0-preview.2";
+pub const VERSION: &str = "0.1.0-preview.3";
 pub const DEFAULT_CONFIG: &str = include_str!("../distribution/watchtower/config.toml");
 const MARKER: &str = "WATCHTOWER_CONTEXT";
 const OVERRIDES: &[&str] = &[
@@ -109,7 +109,7 @@ pub fn prepare_environment() -> io::Result<()> {
     std::env::set_var("WATCHTOWER_CONTEXT_HOME", crate::config::config_dir());
     let own_binary = executable
         .parent()
-        .map(|directory| directory.join("watchtower.exe"));
+        .map(|directory| directory.join(format!("watchtower{}", std::env::consts::EXE_SUFFIX)));
     let own_binary = own_binary
         .as_deref()
         .filter(|path| path.is_file())

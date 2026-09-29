@@ -26,7 +26,8 @@ def runtime(env):
             env=env, timeout=8, creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
         if result.returncode == 0:
             return candidate
-    raise ValueError('Results needs the Accounts UI runtime. Run setup-accounts.cmd first.')
+    setup = 'setup-accounts.cmd' if os.name == 'nt' else 'setup-accounts'
+    raise ValueError(f'Results needs the Accounts UI runtime. Run {setup} first.')
 
 
 def main():

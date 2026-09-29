@@ -7,12 +7,13 @@ RUNTIME_FILES = {"packs.py", "grading.py", "answer_grading.py", "private_packs.p
                  "packs/code-review-v1.json", "packs/debugging-v1.json",
                  "packs/gsm8k-subset-v1.json", "packs/bbh-subset-v1.json", "packs/bbeh-subset-v1.json",
                  "licenses/gsm8k-MIT.txt", "licenses/bbh-MIT.txt", "licenses/bbeh-NOTICE.txt", "BENCHMARKS.md"}
+MACOS_FILES = {"herdr-plugin.macos.toml", "bin/center"}
 DEVELOPMENT_FILES = {"test_packs.py", "test_grading.py", "test_answer_grading.py", "test_private_packs.py", "test_choice_grading.py", "test_providers.py", "test_service.py", "test_private_service.py", "test_published_service.py", "test_view.py", "test_appearance.py"}
 
 
 def validated_benchmark_files(root):
     actual = {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
-    if not RUNTIME_FILES <= actual or actual - RUNTIME_FILES - DEVELOPMENT_FILES:
+    if not RUNTIME_FILES <= actual or actual - RUNTIME_FILES - DEVELOPMENT_FILES - MACOS_FILES:
         raise ValueError("Unexpected or missing files in the Model Lab package")
     result = []
     for name in sorted(RUNTIME_FILES):

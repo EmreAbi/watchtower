@@ -13,7 +13,7 @@ files, transcripts, or existing ledger records are copied into this package.
 Each server endpoint gets a separate `state/radio/<socket-hash>` ledger, so
 named sessions cannot collide merely because their pane IDs are the same.
 
-The private `bin/radio.cmd` is added only to Watchtower child processes' PATH.
+The private `bin/radio.cmd` (Windows) or `bin/radio` (macOS) is added only to Watchtower child processes' PATH.
 The normal AgentRadio installation/startup scripts are not bundled or executed:
 they update the user's shared Radio launcher. Instead this manifest starts a
 hidden supervisor and relay using the same isolated state directory as every
@@ -39,7 +39,8 @@ Open it with `watchtower plugin pane open --plugin radio --entrypoint context`.
 
 The optional upstream Radio view requires Textual. From a Watchtower shell run
 `<package>/radio/bin/hook.cmd install-view` to create a private virtual environment
-and install it, then `radio view`. This explicit dependency setup requires PyPI
+and install it, then `radio view`. On macOS use
+`sh <package>/radio/bin/hook install-view` from that Watchtower shell. This explicit dependency setup requires PyPI
 access; it is not run during startup or plugin linking.
 
 Python **3.10+** must be installed for the CLI, relay and context pane.

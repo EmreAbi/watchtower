@@ -135,3 +135,15 @@ keeps native automatic agent restore disabled).
 All runtime state lives outside this source/package directory. Bundled Radio
 0.7.1 stays byte-for-byte unchanged. The Accounts runner uses native provider
 argv on Windows to avoid PowerShell policy and command-shim quoting problems.
+
+## macOS preview
+
+Accounts can connect provider profiles and launch new agents on macOS. Codex
+browser sign-in includes Open browser and Copy link (`pbcopy`); profile homes
+stay separate and no credentials are transferred between them. Providers must
+already be installed and available on PATH.
+
+Switch account for existing agents is disabled on macOS in this preview because
+its process-ownership and same-session resume checks require Windows PowerShell.
+Use New agent with the desired account instead. The central Codex updater is
+also Windows-only; macOS installations remain managed by their original installer.

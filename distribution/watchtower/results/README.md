@@ -53,5 +53,8 @@ enable arbitrary operating-system file execution.
 This plugin shares the explicitly installed Accounts runtime: Textual 8.2.8,
 Pillow 12.3.0 and pypdfium2 5.13.0. Run Accounts setup to install these into the
 private virtual environment; missing preview dependencies produce a visible
-message. It installs no packages and starts no agent on opening. Windows is the
-initial supported host.
+message. It installs no packages and starts no agent on opening. The preview
+supports Windows and macOS. On macOS, Show folder reveals the selected output
+in Finder, Copy path uses the native clipboard, and Save as opens the native
+file chooser without requiring Tcl/Tk. Paths and filenames are passed as data
+to those helpers; output text is never executed as a shell command.

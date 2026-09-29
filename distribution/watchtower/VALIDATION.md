@@ -95,3 +95,15 @@ python -B scripts/watchtower_smoke_windows.py --exe <package>/watchtower.exe --r
 
 The manual GitHub workflow performs the same checks with pinned Python/UI
 versions and uploads artifacts only. It does not publish releases automatically.
+
+## Apple Silicon preview.3 validation
+
+The macOS workflow verifies the exact commit on a native Apple Silicon macOS 15
+runner. It runs Rust checks and Python suites, builds with the Watchtower feature,
+checks Mach-O architecture, ad-hoc signing and system dynamic dependencies, then
+packages allowlisted files with hashes and executable modes. Two isolated server
+instances exercise real zsh PTYs, role metadata, plugin linking and independent
+Radio startup/shutdown. The downloadable workflow report records success/failure;
+Windows results above are not claimed as Mac results. Interactive provider login,
+Gatekeeper approval and existing-session account switching are not validated by
+this headless smoke. Existing-session switching remains disabled on macOS.

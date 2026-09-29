@@ -8,6 +8,7 @@ RUNTIME_FILES = {
     "review_engine.py", "workflow.py",
     "herdr-plugin.toml", "bin/center.cmd", "README.md",
 }
+MACOS_FILES = {"herdr-plugin.macos.toml", "bin/center"}
 DEVELOPMENT_FILES = {
     "test_catalog.py", "test_scaffold.py", "test_service.py", "test_integration.py", "test_view.py",
     "test_workflow.py", "test_review_identity.py",
@@ -20,7 +21,7 @@ def _is_link(path: Path) -> bool:
 
 def validated_teams_files(root: Path) -> list[Path]:
     actual = {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}
-    if not RUNTIME_FILES <= actual or actual - RUNTIME_FILES - DEVELOPMENT_FILES:
+    if not RUNTIME_FILES <= actual or actual - RUNTIME_FILES - DEVELOPMENT_FILES - MACOS_FILES:
         raise ValueError("Unexpected or missing files in the Teams package")
     if _is_link(root):
         raise ValueError("Teams package cannot contain symbolic links or junctions")

@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import shlex
 import sys
 import tempfile
 
@@ -264,7 +265,7 @@ set up a team. Coordinate any task-authorized shared test/build/host activity.
 
 
 def _shell_quote(value):
-    return "'" + str(value).replace("'", "''") + "'"
+    return "'" + str(value).replace("'", "''") + "'" if os.name == "nt" else shlex.quote(str(value))
 
 
 def _workflow_instructions(config, role_id):
@@ -273,7 +274,8 @@ def _workflow_instructions(config, role_id):
         return ("\n## Review policy\n\nIndependent review is required, but the task workflow is not connected. "
                 "Report this concrete setup limitation; do not invent PASS or claim a completion gate ran.\n"
                 if required else "")
-    command = "& " + _shell_quote(config["python"]) + " -B " + _shell_quote(config["workflow_cli"])
+    shell = "powershell" if os.name == "nt" else "sh"
+    command = ("& " if os.name == "nt" else "") + _shell_quote(config["python"]) + " -B " + _shell_quote(config["workflow_cli"])
     team_arg = " --team-dir " + _shell_quote(config["team_root"]) + " --id TASK_ID"
     request = _shell_quote(str(Path(config["team_root"]) / "work-items" / "TASK_ID-request.json"))
     submission = _shell_quote(str(Path(config["team_root"]) / "work-items" / "TASK_ID-submission.json"))
@@ -291,7 +293,7 @@ For optional tracking, write an absolute JSON request file with `task` and
 `acceptance_criteria` (an array of concrete checks). Replace `TASK_ID` consistently
 with one stable ID, begin before work, and complete when the outcome is verified:
 
-```powershell
+```{shell}
 {command} begin{team_arg} --request {request}
 {command} complete{team_arg} --summary 'Short factual completion summary'
 ```
@@ -312,7 +314,7 @@ Never assume a message, a report filename, or a setup ACK proves PASS.
 For a deliberate status check, run the read-only command below. Replies and work
 arrive through Radio push; do not poll status or inbox while awaiting another agent.
 
-```powershell
+```{shell}
 {command} status{team_arg}
 ```
 """
@@ -323,7 +325,7 @@ arrive through Radio push; do not poll status or inbox while awaiting another ag
 Write the begin request file with `task` (the agreed user request) and
 `acceptance_criteria` (an array of concrete checks), then begin it:
 
-```powershell
+```{shell}
 {command} begin{team_arg} --request {request}
 ```
 
@@ -332,7 +334,7 @@ Coordinate fixes after CHANGES_REQUIRED; investigate BLOCKED or stale evidence
 without marking it PASS. Complete only after the exact current digest has an
 independent PASS and the requested outcome has been verified:
 
-```powershell
+```{shell}
 {command} complete{team_arg} --digest CURRENT_DIGEST --summary 'Short factual completion summary'
 ```
 """
@@ -346,7 +348,7 @@ with absolute `path`, or an empty array for a research report), `shared_impact`
 (an array), and `reviewer_contributed: false`. Copy task and criteria unchanged
 from the owner's record. List the actual output and validation evidence.
 
-```powershell
+```{shell}
 {command} submit{team_arg} --request {submission}
 ```
 
@@ -362,7 +364,7 @@ Wait for an actual submitted task and digest. Read the exact submitted artifacts
 acceptance criteria and relevant evidence. Do not edit implementation or submitted
 artifacts. Write a concise review report, then record the observed decision:
 
-```powershell
+```{shell}
 {command} result{team_arg} --digest SUBMITTED_DIGEST --decision PASS --report {report}
 ```
 

@@ -29,6 +29,18 @@ SESSION = re.compile(r"[a-fA-F0-9-]{36}\Z")
 PANE = re.compile(r"w\d+:p\d+\Z")
 TOKEN = re.compile(r"[a-f0-9]{48}\Z")
 UNSUPPORTED = "Session-preserving switching is not supported for this provider yet."
+PLATFORM_UNSUPPORTED = ("Switch account for existing agents is available on Windows only in this preview. "
+                        "Use New agent to launch with another account on macOS.")
+
+
+def switch_supported():
+    # Process ownership and guarded resume currently require Windows PowerShell.
+    return os.name == "nt"
+
+
+def _require_supported_platform():
+    if not switch_supported():
+        raise AccountError("switch_platform_unsupported", PLATFORM_UNSUPPORTED)
 
 
 def session_file(home, session):
@@ -230,6 +242,7 @@ class SwitchService:
         return source, target
 
     def switch_candidates(self, source_id):
+        _require_supported_platform()
         source, _ = self._profiles(source_id)
         profiles = self.service.list()["profiles"]
         targets = [{key: p[key] for key in ("id", "label", "provider")} for p in profiles
@@ -274,6 +287,7 @@ class SwitchService:
                     agents=agents, notice="Select idle Codex agents. Their panes, Radio roles, model and conversation are retained. Busy agents are skipped; no automatic rotation.")
 
     def prepare_switch(self, source_id, target_id, pane_ids):
+        _require_supported_platform()
         source, target = self._profiles(source_id, target_id)
         if source["provider"] != "codex":
             raise AccountError("unsupported_provider", UNSUPPORTED)
@@ -355,6 +369,7 @@ class SwitchService:
         raise AccountError("resume_unconfirmed", "Resume was requested but is not yet confirmed. Inspect this pane before retrying.")
 
     def switch_accounts(self, token, progress_callback=None):
+        _require_supported_platform()
         if not self.operation.acquire(blocking=False):
             raise AccountError("switch_busy")
         results = []
@@ -420,6 +435,7 @@ class SwitchService:
 
 def run_ticket(path):
     """Runs only inside the chosen pane, after its original CLI has exited."""
+    _require_supported_platform()
     from integration import run_radio_plan
     path = Path(path)
     if not path.is_absolute() or not TOKEN.fullmatch(path.stem) or path.suffix != ".json":

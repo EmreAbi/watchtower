@@ -821,6 +821,7 @@ class CodexToolsTests(unittest.IsolatedAsyncioTestCase):
 
 class SwitchAccountTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        self.enterContext(patch("switch_service.switch_supported", return_value=True))
         asyncio.get_running_loop().set_debug(False)
 
     def app(self,switch):
@@ -839,6 +840,20 @@ class SwitchAccountTests(unittest.IsolatedAsyncioTestCase):
                 await worker.wait()
         await pilot.pause()
         return modal
+
+    async def test_macos_disables_existing_agent_switch_and_keeps_new_agent_available(self):
+        service = FakeSwitchService()
+        app = self.app(service)
+        with patch("switch_service.switch_supported", return_value=False):
+            async with app.run_test(size=(100, 32)) as pilot:
+                await pilot.pause()
+                button = app.query_one("#switch-account", Button)
+                self.assertTrue(button.disabled)
+                self.assertIn("New agent", str(button.tooltip))
+                self.assertFalse(app.query_one("#new-agent", Button).disabled)
+                await pilot.click("#switch-account")
+                await pilot.pause()
+                app.switch_service_factory.assert_not_called()
 
     async def test_open_and_cancel_are_read_only_and_targets_stay_same_provider(self):
         service=FakeSwitchService();app=self.app(service)

@@ -16,11 +16,14 @@
     "bin/hook.cmd": "8c5e66954727e8019a1a78c7577ac5bef6107f124cc9b86a4c01c197d5f22b64",
     "bin/radio.cmd": "b463b63033ad4f8b7f9587e59f31e84c6ee68d0c71774e4ed3b38a54361de105",
     "herdr-plugin.toml": "704bd6e827993e4ca08b874169380a15dcde43ac946b366a9d578108f7a24c7a",
-    "README.md": "14e93a84554dcd2affcad93b71db7630600fe07fd4ea742e7dd1548173273e85",
+    "README.md": "9df2e01420bec27f1778986377179aaf68db22a6aff97fa363c02cfe9bc95006",
     "vendor/AgentRadio/bin/radio": "56c2ef9ed832ad5e574431650fb10c932799dc075de66984726c81ab73a4c42f",
     "vendor/AgentRadio/bin/radio-view": "951e5c513ac6862f325ed2d6e627a3855064d8a2d6c2e9c76e863700552fcf27",
     "vendor/AgentRadio/bin/run-view.py": "43ddfb759975a18425f7ae3a2a05a12b51818177785c3fa742c4a99e2a856b5d",
     "vendor/AgentRadio/LICENSE": "020d4c5cc530cb81492503a5a9e3e72dcf8dae55e06d25c82f2e7026d8449b62",
-    "watchtower_radio.py": "64821879518ce2e124b6abe9fc1a0af6dac092e7bc424b24c54cea2fb191956e"
+    "watchtower_radio.py": "0a5be3d0cc60365641b48e05ea2d4983a463e6e17216dfd9b80014219f399869",
+    "bin/hook": "bc945358ecb0e1bc80d91a4e66205f5b11bb72cd4d68ddb7abf994ba97929256",
+    "bin/radio": "7da5fc12041a6fb4f06bd888862d227313689e83daf14cc1323c2e2b6d936c7b",
+    "herdr-plugin.macos.toml": "f3aca50211c4b8263d3ff5842cc597bc234f0de43c7767845cf881bda5082d6b"
   }
 }

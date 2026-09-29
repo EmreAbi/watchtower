@@ -1,0 +1,14 @@
+id = "watchtower-benchmarks"
+name = "Watchtower Model Lab"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Review, run and compare controlled model evaluations"
+platforms = ["macos"]
+
+[[panes]]
+id = "center"
+title = "Model Lab"
+placement = "popup"
+width = "94%"
+height = "94%"
+command = ["sh", "bin/center"]

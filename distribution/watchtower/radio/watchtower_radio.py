@@ -199,10 +199,11 @@ def install_view(env: dict[str, str]) -> int:
     venv = Path(env["RADIO_HOME"]) / "venv"
     python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     if not python.is_file():
-        result = subprocess.run([sys.executable, "-m", "venv", str(venv)], env=env)
+        result = subprocess.run([sys.executable, "-I", "-m", "venv", str(venv)], env=env)
         if result.returncode:
             return result.returncode
-    return subprocess.run([str(python), "-m", "pip", "install", "textual>=1.0"], env=env).returncode
+    return subprocess.run([str(python), "-I", "-m", "pip", "install",
+                           "--disable-pip-version-check", "--only-binary=:all:", "textual==8.2.8"], env=env).returncode
 
 
 def main(argv: list[str] | None = None) -> int:

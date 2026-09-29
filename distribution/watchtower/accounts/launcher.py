@@ -68,7 +68,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             python = next((path for path in candidates if supports_textual(path, env)), None)
             if python is None:
-                raise ValueError("Accounts UI is not set up. Run setup-accounts.cmd, then open Accounts again.")
+                setup = "setup-accounts.cmd" if os.name == "nt" else "./setup-accounts"
+                raise ValueError(f"Accounts UI is not set up. Run {setup}, then open Accounts again.")
             command = [str(python), "-B", str(ROOT / "view.py")]
         return subprocess.run(command, cwd=ROOT, env=env).returncode
     except (OSError, ValueError) as exc:

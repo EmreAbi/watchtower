@@ -12,7 +12,7 @@ with [AgentRadio](https://github.com/detailles/AgentRadio) for communication.
 Herdr provides the terminal runtime; this project develops its own defaults,
 team experience and release path.
 
-> **Status: Windows preview `0.1.0-preview.2`.** Based on Herdr `0.9.1`, with
+> **Development preview `0.1.0-preview.3`: Windows x64 and Apple Silicon macOS.** Based on Herdr `0.9.1`, with
 > AgentRadio `0.7.1`. This is a portable development preview, not a stable release.
 
 ## What is in this preview?
@@ -104,7 +104,7 @@ isolation checks, test results and the known Windows ACL test limitation.
 
 ## Preview boundaries and next steps
 
-The preview is Windows x64 and local-only. Upstream self-updates, remote
+The preview is local-only. Windows x64 and Apple Silicon macOS have separate packages. Upstream self-updates, remote
 provisioning, detection catalog downloads and shared provider-hook modifications
 are disabled. There is no Watchtower installer or automatic update feed yet.
 
@@ -140,3 +140,17 @@ portable package includes dependency notices. Exact upstream revisions are in
 [product.json](distribution/watchtower/product.json) and
 [Radio provenance](distribution/watchtower/radio/provenance.json); each ZIP
 records its source revision and file hashes in `BUILD-MANIFEST.json`.
+
+## Apple Silicon macOS
+
+The Mac package targets macOS 15 or later on M1 or newer processors. See the
+[Mac setup and build guide](distribution/watchtower/MACOS.md) for the native
+archive, setup commands and current feature boundaries. The Mac workflow tests
+and builds on an Apple Silicon runner; Windows binaries do not run on macOS.
+The package is ad-hoc signed, not Developer ID signed or notarized.
+
+## Contributing
+
+See [Contributing to Watchtower](CONTRIBUTING.md). This fork has its own review
+process and no approved-contributor allowlist. Upstream licensing and attribution
+are retained.

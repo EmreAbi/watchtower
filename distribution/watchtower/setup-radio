@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+# Use one portable state root for setup, the server and Python plugins.
+WATCHTOWER_HOME=${WATCHTOWER_HOME:-"$HOME/.watchtower"}
+case "$WATCHTOWER_HOME" in
+    /*) export WATCHTOWER_HOME ;;
+    *) printf '%s\n' 'WATCHTOWER_HOME must be an absolute path.' >&2; exit 1 ;;
+esac
+watchtower_package_dir=$(CDPATH= cd -P "$(dirname "$0")" && pwd)
+exec "$watchtower_package_dir/watchtower" plugin link "$watchtower_package_dir/radio"

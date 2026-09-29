@@ -3,6 +3,8 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import json
 import os
+import shlex
+from types import SimpleNamespace
 from pathlib import Path
 import tempfile
 import threading
@@ -194,6 +196,22 @@ class ScaffoldTest(unittest.TestCase):
         self.assertIn(str(self.target() / "BRIEF.md"), role_text["worker"])
         self.assertIn("Do not edit implementation", role_text["reviewer"])
         self.assertNotIn("approval_policy", json.dumps(config))
+
+    def test_posix_workflow_commands_round_trip_paths_with_shell_metacharacters(self):
+        config = scaffold(self.prepared(), self.target(), workspace_id="w2", runtime=self.runtime())
+        config.update(python="/opt/runtime with spaces/python3",
+                      workflow_cli="/opt/watchtower's tools/workflow.py",
+                      team_root="/tmp/team $HOME; (example)")
+        with patch.object(module, "os", SimpleNamespace(name="posix")):
+            for role in ("lead", "worker", "reviewer"):
+                text = module._workflow_instructions(config, role)
+                self.assertIn("```sh", text)
+                self.assertNotIn("```powershell", text)
+                for block in text.split("```sh\n")[1:]:
+                    command = block.split("\n```", 1)[0].splitlines()[0]
+                    argv = shlex.split(command)
+                    self.assertEqual(argv[:3], [config["python"], "-B", config["workflow_cli"]])
+                    self.assertEqual(argv[argv.index("--team-dir") + 1], config["team_root"])
 
     def test_existing_files_and_empty_directory_are_never_overwritten(self):
         prepared = self.prepared()
