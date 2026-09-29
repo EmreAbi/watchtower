@@ -582,12 +582,19 @@ test "$sid" = "$$"
             message.contains("Stop the old server to use the new version"),
             "unexpected error: {message}"
         );
+        // The same named-session contract applies to both product builds.
+        // Watchtower must point at its isolated runtime, never an installed Herdr.
+        let command = if cfg!(feature = "watchtower") {
+            "watchtower"
+        } else {
+            "herdr"
+        };
         assert!(
-            message.contains("Run `herdr session stop work`"),
+            message.contains(&format!("Run `{command} session stop work`")),
             "unexpected error: {message}"
         );
         assert!(
-            message.contains("then run `herdr session attach work` again"),
+            message.contains(&format!("then run `{command} session attach work` again")),
             "unexpected error: {message}"
         );
         std::env::remove_var("XDG_CONFIG_HOME");

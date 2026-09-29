@@ -16,6 +16,8 @@ env:
   PYTHONDONTWRITEBYTECODE: "1"
   PYTHONUTF8: "1"
   CARGO_PROFILE_TEST_DEBUG: "1"
+  ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache
+  ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache
   MACOSX_DEPLOYMENT_TARGET: "15.0"
 
 jobs:
@@ -32,6 +34,18 @@ jobs:
           toolchain: 1.96.1
           components: rustfmt,clippy
           targets: aarch64-apple-darwin
+      - uses: taiki-e/install-action@fd2f5e3d644b484055ebf4268f474c565f148f25 # v2.81.9
+        with:
+          tool: cargo-nextest@0.9.146
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          cache-bin: false
+          cache-on-failure: true
+          key: watchtower-macos-arm64
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .zig-cache
+          key: watchtower-zig-arm64-0.16-${{ hashFiles('vendor/libghostty-vt.vendor.json', 'build.rs') }}
       - uses: vercel-labs/setup-zig@83c1594f26b86da8a9a8ddd9b5ee5f3af0f96943 # v1.0.2
         with:
           version: 0.16.0
@@ -42,15 +56,18 @@ jobs:
         run: |
           test "$(uname -m)" = arm64
           python3 -m pip install --disable-pip-version-check --only-binary=:all: textual==8.2.8 Pillow==12.3.0 pypdfium2==5.13.0
-      - name: Check Rust and Python runtimes
+      - name: Test Python runtimes and packaging
         run: |
-          cargo fmt --check
-          cargo clippy --all-targets --locked --features watchtower -- -D warnings
-          cargo test --locked --features watchtower --bin herdr
           python3 -B -m unittest discover -s scripts -p 'test_watchtower_*.py'
           for suite in accounts results teams benchmarks; do
             python3 -B -m unittest discover -s "distribution/watchtower/$suite" -p 'test_*.py'
           done
+      - name: Check native Rust
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets --locked --features watchtower -- -D warnings
+      - name: Test native Rust in isolated processes
+        run: cargo nextest run --locked --features watchtower --bin herdr --status-level fail --final-status-level fail
       - name: Build and verify portable Mac archive
         run: |
           python3 -B scripts/watchtower_build_macos.py --require-clean-source
